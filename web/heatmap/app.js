@@ -985,7 +985,7 @@ function renderDetailList() {
 }
 
 /** 画日 K 线：蜡烛 + MA5/10/30。数据没到就画个占位字。 */
-function drawKline(rows) {
+function drawKline(rows, note) {
   const c = document.getElementById("detailKline");
   if (!c) return;
   const dpr = window.devicePixelRatio || 1;
@@ -997,9 +997,13 @@ function drawKline(rows) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, w, h);
   if (!rows || rows.length < 2) {
-    g.fillStyle = "#5c6473";
+    // note 传进来就显示它（加载失败 / 没数据）；否则才是「还在加载」。
+    // 顺便清掉 MA 那行，否则会留着上一只票的数字。
+    const maEl0 = document.getElementById("detailMa");
+    if (maEl0) maEl0.textContent = "";
+    g.fillStyle = note ? "#8b93a3" : "#5c6473";
     g.font = "11px sans-serif";
-    g.fillText("K 线加载中…", 10, h / 2);
+    g.fillText(note || "K 线加载中…", 10, h / 2);
     return;
   }
   const padL = 4, padR = 36, padT = 8, padB = 14;
@@ -1084,8 +1088,19 @@ function showDetail(t) {
   drawKline(null);
   if (mc && typeof MarketData !== "undefined" && MarketData.fetchKline) {
     MarketData.fetchKline(mc, 120)
-      .then((rows) => { if (_detailCode === t.code) drawKline(rows); })
-      .catch(() => {});
+      .then((rows) => {
+        if (_detailCode !== t.code) return;
+        // 少于 2 根画不出 K 线——北交所新股、长期停牌常见只给 1 根
+        const enough = rows.length >= 2;
+        drawKline(rows, enough ? null : "无 K 线数据（次新股或长期停牌）");
+        document.getElementById("detailKlineLabel").textContent =
+          enough ? "日 K 线（前复权）" : "日 K 线";
+      })
+      .catch((e) => {
+        if (_detailCode !== t.code) return;
+        var msg = e && e.message === "EMPTY" ? "无 K 线数据（次新股或长期停牌）" : "K 线加载失败：" + (e && e.message || e);
+        drawKline(null, msg);
+      });
   }
 }
 

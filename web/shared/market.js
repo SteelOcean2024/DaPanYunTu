@@ -503,7 +503,13 @@
    * 返回行格式：[日期, 开, 收, 高, 低, 量]（腾讯的前复权格式就是这个顺序）。
    * ================================================================ */
 
-  var KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=";
+  // 腾讯这个接口有两个域名，行为不一样（实测）：
+  //   ifzq.gtimg.cn       200 / 前复权 qfqday  ✅
+  //   web.ifzq.gtimg.cn   501 ❌（原来用的就是这个，被关了）
+  // 两个都留着，一个挂了自动换另一个。
+  var KLINE_HOSTS = ["https://ifzq.gtimg.cn", "https://web.ifzq.gtimg.cn"];
+  var KLINE_PATH = "/appstock/app/fqkline/get?param=";
+  var KLINE_TIMEOUT_MS = 8000;
   var _klineCache = {};
   var _klinePending = {};   // 同一只在飞的请求：并起来，别发两次
 
@@ -512,20 +518,47 @@
     var key = marketCode + ":" + n;
     if (_klineCache[key]) return Promise.resolve(_klineCache[key]);
     if (_klinePending[key]) return _klinePending[key];
-    _klinePending[key] = fetch(KLINE_URL + marketCode + ",day,,," + n + ",qfq")
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var node = d && d.data && d.data[marketCode];
-        var rows = (node && (node.qfqday || node.day)) || [];
-        var out = rows.map(function (r) {
-          return { date: r[0], open: +r[1], close: +r[2], high: +r[3], low: +r[4], vol: +r[5] };
-        });
+    function attempt(hi) {
+      if (hi >= KLINE_HOSTS.length) throw new Error("K 线接口两个域名都不可用");
+      return fetchOneKline(KLINE_HOSTS[hi], marketCode, n).catch(function (e) {
+        if (e && e.message === "EMPTY") throw e;   // 没数据是数据问题，换域名也没用
+        return attempt(hi + 1);
+      });
+    }
+    _klinePending[key] = attempt(0)
+      .then(function (out) {
         _klineCache[key] = out;
         delete _klinePending[key];
         return out;
       })
-      .catch(function (e) { delete _klinePending[key]; throw e; });
+      .catch(function (e) {
+        delete _klinePending[key];
+        throw e;
+      });
     return _klinePending[key];
+  }
+
+  /** 请求单个域名的日 K。带 8 秒超时，避免请求挂住时面板一直显示「加载中」。 */
+  function fetchOneKline(host, marketCode, n) {
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, KLINE_TIMEOUT_MS);
+    return fetch(host + KLINE_PATH + marketCode + ",day,,," + n + ",qfq",
+                 ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        if (d && d.code !== 0) throw new Error("接口 code=" + d.code);
+        var node = d && d.data && d.data[marketCode];
+        var rows = (node && (node.qfqday || node.day)) || [];
+        if (!rows.length) throw new Error("EMPTY");
+        clearTimeout(timer);
+        return rows.map(function (r) {
+          return { date: r[0], open: +r[1], close: +r[2], high: +r[3], low: +r[4], vol: +r[5] };
+        });
+      })
+      .catch(function (e) { clearTimeout(timer); throw e; });
   }
 
   global.MarketData = {
