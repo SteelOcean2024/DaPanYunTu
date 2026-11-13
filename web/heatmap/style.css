@@ -352,7 +352,7 @@ body { display: flex; }
   display: none;
   align-items: center;
   justify-content: center;
-  width: 30px; height: 30px;
+  width: 40px; height: 40px;
   flex: 0 0 auto;
   background: var(--panel-2);
   border: 1px solid var(--border);
@@ -453,4 +453,33 @@ body { display: flex; }
 @media (max-width: 520px) {
   .legend-bar { width: 78px; }
   .stage-title { display: none; }            /* 标题让位给状态与操作 */
+}
+
+/* ==========================================================================
+   触摸支持与点击目标
+   --------------------------------------------------------------------------
+   1) canvas 上的 touch-action: none —— 触摸手势由 app.js 自己接管
+      （单指平移 / 双指缩放）。不设的话浏览器会把拖拽当成滚动页面、
+      把捏合当成缩放页面，canvas 根本收不到事件。
+      这条规则放在原 #treemap 规则之后，同优先级下后者生效。
+   2) 点击目标不小于 44px（Apple HIG / Material 的通用下限）。
+      用 pointer: coarse 而不是宽度断点——iPad 横屏宽 1024 也仍然是手指操作，
+      按宽度判断会把它当成桌面端，按钮只有 30px 高，根本点不准。
+   ========================================================================== */
+#treemap {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (pointer: coarse) {
+  .sidebar-toggle { width: 44px; height: 44px; font-size: 17px; }
+  .board-list li { min-height: 44px; }
+  .seg-btn { min-height: 40px; }
+  .sidebar-foot button,
+  .stage-actions button,
+  .stage-actions select { min-height: 40px; }
+  #treemap { cursor: default; }
+    .brand-link { min-height: 40px; display: inline-flex; align-items: center; }
 }

@@ -79,6 +79,65 @@ tbody tr.unclassified { opacity: .55; }
   header { flex-wrap: wrap; gap: 10px; } .status { margin-left: 0; } .rsbar { width: 66px; }
   details#help { margin-left: 8px; margin-right: 8px; } main { padding: 8px; }
 }
+
+/* ==========================================================================
+   手机端（≤700px）：表格改成卡片
+   --------------------------------------------------------------------------
+   8 列表格在 390px 上要横向滚 681px 才看得完，而且每行只有 24px 高。
+   改成「一个板块一张卡片」：表头隐藏，每个单元格用 data-label 显示列名。
+   标签由 JS 写在 td.dataset.label 上（见 render()）。
+   ========================================================================== */
+@media (max-width: 700px) {
+  thead { display: none; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  tr {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--panel);
+  }
+  tr:hover { background: var(--panel); }
+  td {
+    border: 0;
+    padding: 5px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: right;
+    min-height: 30px;
+  }
+  td::before {
+    content: attr(data-label);
+    color: var(--text-faint);
+    font-size: 12px;
+    margin-right: 12px;
+    flex: 0 0 auto;
+    text-align: left;
+  }
+  td.rank { display: none; }
+  td:nth-child(2) {
+    display: block;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+  }
+  td:nth-child(2)::before { display: none; }
+  td:nth-child(2) .name { font-size: 15px; font-weight: 600; }
+  .rsbar { width: 110px; }
+  .bwbar { width: 70px; }
+  main { padding: 8px; }
+  header { padding: 8px 12px; }
+}
+
+
+@media (pointer: coarse) {
+  .seg button { min-height: 40px; padding: 0 14px; }
+  header { min-height: 52px; }
+  .link { min-height: 40px; display: inline-flex; align-items: center; }
+  details#help summary { min-height: 44px; display: flex; align-items: center; }
+  th[data-key] { min-height: 40px; }
+}
 </style>
 </head>
 <body>
@@ -97,7 +156,7 @@ tbody tr.unclassified { opacity: .55; }
 </header>
 <div class="market" id="marketBar"><span>加载中…</span></div>
 <div id="conclusion"><span class="lead">结论</span><span id="conclusionText">…</span></div>
-<details id="help" open>
+<details id="help">
   <summary>怎么看这一页（点开 / 收起）</summary>
   <div class="body">
     <h4>这一页回答一个问题：今天哪个板块真的在动</h4>
@@ -152,6 +211,7 @@ function fmtTime(iso) {
   var m = String(iso || "").match(/T(\d{2}:\d{2}:\d{2})/);
   return m ? m[1] : "--:--:--";
 }
+function lab(td, text) { td.dataset.label = text; return td; }
 function el(tag, cls, text) {
   var e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -306,26 +366,26 @@ function render() {
   var frag = document.createDocumentFragment();
   rows.forEach(function (r, i) {
     var tr = el("tr", r.name === "未分类" ? "unclassified" : null);
-    tr.appendChild(el("td", "rank", String(i + 1)));
+    tr.appendChild(lab(el("td", "rank", String(i + 1)), "#"));
     var tdName = el("td");
     tdName.appendChild(el("span", "name", r.name));
     tdName.appendChild(el("span", "sub", r.upCount + "/" + r.stockCount));
     tr.appendChild(tdName);
-    tr.appendChild(el("td", pctClass(r.medianPct), fmtPct(r.medianPct)));
+    tr.appendChild(lab(el("td", pctClass(r.medianPct), fmtPct(r.medianPct)), "中位数"));
     var tdRs = el("td");
     tdRs.appendChild(rsBar(r.rsMedian, maxAbs));
-    tr.appendChild(tdRs);
+    tr.appendChild(lab(tdRs, "RS"));
     var tdBw = el("td");
     tdBw.appendChild(bwBar(r.breadth));
-    tr.appendChild(tdBw);
-    tr.appendChild(el("td", "share", ((r.amountShare || 0) * 100).toFixed(2) + "%"));
-    tr.appendChild(el("td", r.limitUpCount > 0 ? "up" : "flat", String(r.limitUpCount)));
+    tr.appendChild(lab(tdBw, "宽度"));
+    tr.appendChild(lab(el("td", "share", ((r.amountShare || 0) * 100).toFixed(2) + "%"), "资金占比"));
+    tr.appendChild(lab(el("td", r.limitUpCount > 0 ? "up" : "flat", String(r.limitUpCount)), "涨停"));
     var tdLead = el("td");
     if (r.leaderName) {
       tdLead.appendChild(el("span", "lead", r.leaderName + " "));
       tdLead.appendChild(el("span", pctClass(r.leaderPct), fmtPct(r.leaderPct)));
     }
-    tr.appendChild(tdLead);
+    tr.appendChild(lab(tdLead, "龙头"));
     frag.appendChild(tr);
   });
   tb.appendChild(frag);
@@ -351,6 +411,8 @@ document.getElementById("headRow").addEventListener("click", function (e) {
   else { state.sortKey = k; state.sortDir = (k === "name") ? 1 : -1; }
   render();
 });
+// 说明块只在宽屏默认展开——手机上它会把数据整个顶出首屏
+if (innerWidth >= 900) document.getElementById("help").open = true;
 setInterval(renderClock, 1000);
 fetchStrength();
 state.timer = setInterval(fetchStrength, POLL_SERVER);

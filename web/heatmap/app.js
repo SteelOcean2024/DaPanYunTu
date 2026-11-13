@@ -900,6 +900,109 @@ function openQuote(t) {
   a.remove();
 }
 
+
+/* ============================ 触摸交互 ============================
+ * 桌面端的鼠标事件在触摸设备上只有「点按」能靠浏览器合成的 click 生效，
+ * 拖拽和捏合手势会被浏览器拿去滚页 / 缩放页面本身（canvas 也收不到）。
+ * 所以这里显式接管触摸，并在 CSS 里给 canvas 设 touch-action: none。
+ *
+ *   单指拖动 = 平移
+ *   双指捏合 = 以两指中点为锚点缩放
+ *   轻点     = 第一次显示详情，再点同一块才打开行情页
+ *              （触摸没有 hover，不给一次预览机会的话，点错就直接跳走了）
+ */
+const _touch = { mode: null, x: 0, y: 0, tx: 0, ty: 0, dist: 0, scale: 1, anchor: null, moved: false };
+
+function touchDist(a, b) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+
+canvas.addEventListener("touchstart", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    _touch.mode = "pan";
+    _touch.x = t.clientX - rect.left;
+    _touch.y = t.clientY - rect.top;
+    _touch.tx = state.view.tx;
+    _touch.ty = state.view.ty;
+    _touch.moved = false;
+  } else if (e.touches.length === 2) {
+    const m = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top,
+    };
+    _touch.mode = "pinch";
+    _touch.dist = touchDist(e.touches[0], e.touches[1]) || 1;
+    _touch.scale = state.view.scale;
+    _touch.x = m.x;
+    _touch.y = m.y;
+    _touch.anchor = toWorld(m.x, m.y);
+    _touch.moved = true;
+  }
+  canvas.classList.add("dragging");
+  hideTooltip();
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchmove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  if (_touch.mode === "pan" && e.touches.length === 1) {
+    const t = e.touches[0];
+    const sx = t.clientX - rect.left;
+    const sy = t.clientY - rect.top;
+    const dx = sx - _touch.x;
+    const dy = sy - _touch.y;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) _touch.moved = true;
+    state.view.tx = _touch.tx + dx;
+    state.view.ty = _touch.ty + dy;
+    clampView();
+    draw();
+  } else if (_touch.mode === "pinch" && e.touches.length === 2) {
+    const next = clamp(
+      _touch.scale * (touchDist(e.touches[0], e.touches[1]) / _touch.dist),
+      MIN_SCALE,
+      MAX_SCALE
+    );
+    state.view.scale = next;
+    state.view.tx = _touch.x - _touch.anchor.x * next;
+    state.view.ty = _touch.y - _touch.anchor.y * next;
+    clampView();
+    draw();
+  }
+  e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener("touchend", (e) => {
+  canvas.classList.remove("dragging");
+  if (_touch.mode === "pan" && !_touch.moved && e.changedTouches.length) {
+    const rect = canvas.getBoundingClientRect();
+    const t = e.changedTouches[0];
+    const sx = t.clientX - rect.left;
+    const sy = t.clientY - rect.top;
+    const hit = hitTest(sx, sy);
+    if (hit && state.hovered === hit) {
+      openQuote(hit);              // 第二次点同一块 → 打开行情页
+    } else {
+      state.hovered = hit;         // 第一次点 → 先给详情
+      if (hit) showTooltip(hit, sx, sy);
+      else hideTooltip();
+      draw();
+    }
+  }
+  if (e.touches.length === 0) {
+    _touch.mode = null;
+    _touch.anchor = null;
+  }
+  e.preventDefault();   // 顺带抑制浏览器合成的 click，避免点一次开两次
+}, { passive: false });
+
+canvas.addEventListener("touchcancel", () => {
+  _touch.mode = null;
+  canvas.classList.remove("dragging");
+});
+
+
 canvas.addEventListener('click', (e) => {
   // 拖拽结束后不要误触发点击
   if (state.dragMoved) {
