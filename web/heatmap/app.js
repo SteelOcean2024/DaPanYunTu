@@ -171,9 +171,14 @@ function computeColor(pct) {
   return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 }
 
-/** 文字颜色：深色块用白字，浅色块用深字，保证对比度 */
+/** 文字颜色：按方块填充色的亮度自动选白字或深字。
+ *  以前这里恒返回白色——浅色主题下亮色块上的白字几乎看不清。 */
 function textColorFor(pct) {
-  return 'rgba(255,255,255,0.92)';
+  const m = colorFor(pct).match(/\d+/g);
+  if (!m) return '#ffffff';
+  const r = +m[0], g = +m[1], b2 = +m[2];
+  const lum = (0.2126 * r + 0.7152 * g + 0.0722 * b2) / 255;
+  return lum > 0.62 ? '#0d1117' : '#ffffff';
 }
 
 /* ============================ Squarified Treemap ============================ */
@@ -338,6 +343,75 @@ function buildLayout(tree, W, H) {
 }
 
 /* ============================ 画布 ============================ */
+/* ============================ 主题 ============================
+ * 云图的底色、板块标题带、板块边框这些**画在 canvas 上**的颜色也必须跟着主题走，
+ * 否则切到浅色主题时 canvas 还是黑的。
+ * 做法：颜色只在 CSS 里定义一份（:root 与 html[data-theme=...]），JS 读出来用。
+ * ============================================================ */
+
+const THEMES = [
+  { id: 'dark', name: '深色' },
+  { id: 'light', name: '浅色' },
+  { id: 'blue', name: '蓝调' },
+  { id: 'warm', name: '米色' },
+];
+const THEME_KEY = 'dapanyuntu-theme';
+let _tk = null;
+
+/** 读 CSS 变量当 canvas 调色板。缓存到下次换主题。 */
+function tokens() {
+  if (_tk) return _tk;
+  const cs = getComputedStyle(document.documentElement);
+  const g = (n, d) => (cs.getPropertyValue(n) || '').trim() || d;
+  _tk = {
+    canvasBg:    g('--canvas-bg', '#0f1115'),
+    band1:       g('--board-h1-bg', 'rgba(8,10,13,0.72)'),
+    band2:       g('--board-h2-bg', 'rgba(10,12,16,0.55)'),
+    bandText:    g('--band-text', 'rgba(255,255,255,0.97)'),
+    bandTextDim: g('--band-text-dim', 'rgba(255,255,255,0.45)'),
+    line:        g('--board-line', 'rgba(255,255,255,0.16)'),
+    line1:       g('--board-line-1', 'rgba(255,255,255,0.42)'),
+    hover:       g('--hover-line', 'rgba(255,255,255,0.95)'),
+    upLabel:     g('--up-label', '#ff9a9a'),
+    downLabel:   g('--down-label', '#8ee0ab'),
+  };
+  return _tk;
+}
+
+function setTheme(id) {
+  document.documentElement.setAttribute('data-theme', id);
+  try { localStorage.setItem(THEME_KEY, id); } catch (e) { /* 隐私模式忽略 */ }
+  _tk = null;   // 调色板缓存作废，下次 draw 重新读
+  draw();
+}
+
+function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
+  const id = THEMES.some((t) => t.id === saved) ? saved : 'dark';
+  document.documentElement.setAttribute('data-theme', id);
+  const sel = document.getElementById('themeSelect');
+  if (sel) {
+    THEMES.forEach((t) => {
+      const o = document.createElement('option');
+      o.value = t.id;
+      o.textContent = t.name;
+      sel.appendChild(o);
+    });
+    sel.value = id;
+    sel.addEventListener('change', () => setTheme(sel.value));
+  }
+}
+initTheme();
+
+/** 详情面板（桌面端）是否可用。
+ *  **必须和 style.css 里那两条 media query 保持一致**：
+ *  不能判 display —— 面板被 hidden 属性藏起来时 display 同样是 none，
+ *  那样就分不清「设备上不该用」和「此刻没显示」，tooltip 会重新冒出来叠在一起。 */
+function detailEnabled() {
+  return !window.matchMedia('(max-width: 1099px)').matches
+      && !window.matchMedia('(pointer: coarse)').matches;
+}
 
 const canvas = document.getElementById('treemap');
 const ctx = canvas.getContext('2d', { alpha: false });
@@ -408,7 +482,7 @@ function draw() {
   const layout = state.layout;
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = '#0f1115';
+  ctx.fillStyle = tokens().canvasBg;
   ctx.fillRect(0, 0, W, H);
   // ctx.save/restore 会连字体一起还原，缓存必须作废
   _lastFontSpec = '';
@@ -454,7 +528,7 @@ function draw() {
     if (s.head.x > viewRect.x + viewRect.w || s.head.x + s.head.w < viewRect.x) continue;
     if (s.head.y > viewRect.y + viewRect.h || s.head.y + s.head.h < viewRect.y) continue;
 
-    ctx.fillStyle = 'rgba(10,12,16,0.55)';
+    ctx.fillStyle = tokens().band2;
     ctx.fillRect(s.head.x, s.head.y, s.head.w, s.head.h);
 
     const fpx = headerFontSize(s.name, s.head, 0.62, 0.62, 9, scale);
@@ -463,14 +537,14 @@ function draw() {
     ctx.textAlign = 'left';
 
     const pad = 4 / scale;
-    ctx.fillStyle = 'rgba(255,255,255,0.94)';
+    ctx.fillStyle = tokens().bandText;
     const nameW = ctx.measureText(s.name).width;
     ctx.fillText(s.name, s.head.x + pad, s.head.y + s.head.h / 2);
 
     // 涨跌幅右对齐
     if (s.head.w > 90 / scale) {
       ctx.textAlign = 'right';
-      ctx.fillStyle = s.changePct >= 0 ? '#ff9a9a' : '#8ee0ab';
+      ctx.fillStyle = s.changePct >= 0 ? tokens().upLabel : tokens().downLabel;
       ctx.fillText(fmtPct(s.changePct), s.head.x + s.head.w - pad, s.head.y + s.head.h / 2);
       ctx.textAlign = 'left';
     }
@@ -483,7 +557,7 @@ function draw() {
     if (b.head.x > viewRect.x + viewRect.w || b.head.x + b.head.w < viewRect.x) continue;
     if (b.head.y > viewRect.y + viewRect.h || b.head.y + b.head.h < viewRect.y) continue;
 
-    ctx.fillStyle = 'rgba(8,10,13,0.72)';
+    ctx.fillStyle = tokens().band1;
     ctx.fillRect(b.head.x, b.head.y, b.head.w, b.head.h);
 
     // 左侧色条：一眼看出板块方向
@@ -496,20 +570,20 @@ function draw() {
     ctx.textAlign = 'left';
 
     const pad = 7 / scale;
-    ctx.fillStyle = 'rgba(255,255,255,0.97)';
+    ctx.fillStyle = tokens().bandText;
     ctx.fillText(b.name, b.head.x + pad, b.head.y + b.head.h / 2);
 
     if (b.head.w > 130 / scale) {
       const nameW = ctx.measureText(b.name).width;
       ctx.font = `${fpx * 0.82}px -apple-system, "Microsoft YaHei", sans-serif`;
-      ctx.fillStyle = b.changePct >= 0 ? '#ff9a9a' : '#8ee0ab';
+      ctx.fillStyle = b.changePct >= 0 ? tokens().upLabel : tokens().downLabel;
       ctx.fillText(fmtPct(b.changePct), b.head.x + pad + nameW + 8 / scale,
                    b.head.y + b.head.h / 2);
     }
     if (b.head.w > 210 / scale) {
       ctx.textAlign = 'right';
       ctx.font = `${fpx * 0.78}px -apple-system, "Microsoft YaHei", sans-serif`;
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillStyle = tokens().bandTextDim;
       ctx.fillText(`${b.stockCount} 只`, b.head.x + b.head.w - pad,
                    b.head.y + b.head.h / 2);
       ctx.textAlign = 'left';
@@ -517,9 +591,31 @@ function draw() {
   }
 
   // ---------- 悬停高亮 ----------
+  // ---------- 板块边界 ----------
+  // 只靠方块之间 1px 的缝，看不出哪一块属于哪个行业。
+  // 这里给二级板块描细边、一级板块描粗边——框住的范围就是行业范围。
+  {
+    const bl = tokens();
+    ctx.lineWidth = 1 / scale;
+    ctx.strokeStyle = bl.line;
+    for (const s of layout.subBoards) {
+      if (s.w * scale < 8 || s.h * scale < 8) continue;
+      if (s.x > viewRect.x + viewRect.w || s.x + s.w < viewRect.x) continue;
+      if (s.y > viewRect.y + viewRect.h || s.y + s.h < viewRect.y) continue;
+      ctx.strokeRect(s.x + 0.5 / scale, s.y + 0.5 / scale, s.w - 1 / scale, s.h - 1 / scale);
+    }
+    ctx.lineWidth = 2 / scale;
+    ctx.strokeStyle = bl.line1;
+    for (const b of layout.boards) {
+      if (b.w * scale < 8 || b.h * scale < 8) continue;
+      if (b.x > viewRect.x + viewRect.w || b.x + b.w < viewRect.x) continue;
+      if (b.y > viewRect.y + viewRect.h || b.y + b.h < viewRect.y) continue;
+      ctx.strokeRect(b.x + 1 / scale, b.y + 1 / scale, b.w - 2 / scale, b.h - 2 / scale);
+    }
+  }
   if (state.hovered) {
     const t = state.hovered;
-    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeStyle = tokens().hover;
     ctx.lineWidth = 1.6 / scale;
     ctx.strokeRect(t.x, t.y, t.w, t.h);
   }
@@ -735,7 +831,7 @@ function drawTileLabel(t) {
     setFontScreen(plan.f * 0.94, '600', scale);
     ctx.fillText(plan.pctText, cx, cy + (plan.f * 0.10) / scale);
     if (plan.showPrice) {
-      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.fillStyle = white === '#ffffff' ? 'rgba(255,255,255,0.72)' : 'rgba(13,17,23,0.62)';
       setFontScreen(plan.f * 0.78, '400', scale);
       ctx.fillText(plan.price, cx, cy + (plan.f * 1.30) / scale);
     }
@@ -780,6 +876,8 @@ function hitTest(sx, sy) {
 const tooltipEl = document.getElementById('tooltip');
 
 function showTooltip(t, sx, sy) {
+  // 详情面板开着的时候不再出 tooltip——两个浮窗会叠在一起（这个 bug 是我加面板时引入的）
+  if (detailEnabled()) { hideTooltip(); return; }
   const rows = [
     ['现价', t.price.toFixed(2)],
     ['涨跌幅', fmtPct(t.changePct)],
@@ -1094,7 +1192,7 @@ function showDetail(t) {
         const enough = rows.length >= 2;
         drawKline(rows, enough ? null : "无 K 线数据（次新股或长期停牌）");
         document.getElementById("detailKlineLabel").textContent =
-          enough ? "日 K 线（前复权）" : "日 K 线";
+          enough ? "日 K 线（不复权）" : "日 K 线";
       })
       .catch((e) => {
         if (_detailCode !== t.code) return;

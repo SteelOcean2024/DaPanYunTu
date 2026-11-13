@@ -138,11 +138,34 @@ tbody tr.unclassified { opacity: .55; }
   details#help summary { min-height: 44px; display: flex; align-items: center; }
   th[data-key] { min-height: 40px; }
 }
+
+/* ---------- 主题：与大盘云图共用同一套变量名和 localStorage key ---------- */
+html[data-theme="light"] {
+  --bg: #f2f4f7; --panel: #ffffff; --panel-2: #f6f8fa; --border: #d9dee6;
+  --text: #141a22; --text-dim: #5b6472; --text-faint: #8a93a1;
+  --up: #d0281e; --down: #0f7a3c; --accent: #1f6feb;
+}
+html[data-theme="blue"] {
+  --bg: #08131f; --panel: #0d1f33; --panel-2: #12293f; --border: #1d3a58;
+  --text: #dbe9f7; --text-dim: #8aa6c4; --text-faint: #5a7896;
+  --up: #e05252; --down: #2fa05c; --accent: #4a9eff;
+}
+html[data-theme="warm"] {
+  --bg: #f5efe3; --panel: #fffaf1; --panel-2: #f8f2e7; --border: #ded3c0;
+  --text: #2b2418; --text-dim: #6b6252; --text-faint: #9a9080;
+  --up: #c0392b; --down: #1a7a42; --accent: #b06a1f;
+}
+#themeSelect {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 8px; font-size: 12px; font-family: inherit;
+  min-width: 78px; cursor: pointer;
+}
 </style>
 </head>
 <body>
 <header>
   <div class="brand">行业情况</div>
+  <select id="themeSelect" title="配色主题"></select>
   <div class="seg" id="levelSeg">
     <button data-level="l1" class="active">一级行业</button>
     <button data-level="l2">二级行业</button>
@@ -154,6 +177,27 @@ tbody tr.unclassified { opacity: .55; }
     <a class="link" href="../heatmap/">大盘云图 →</a>
   </div>
 </header>
+<script>
+(function () {
+  var THEMES = [{id:'dark',name:'深色'},{id:'light',name:'浅色'},{id:'blue',name:'蓝调'},{id:'warm',name:'米色'}];
+  var KEY = 'dapanyuntu-theme';
+  var sel = document.getElementById('themeSelect');
+  THEMES.forEach(function (t) {
+    var o = document.createElement('option');
+    o.value = t.id; o.textContent = t.name;
+    sel.appendChild(o);
+  });
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) { /* 隐私模式 */ }
+  var id = THEMES.some(function (t) { return t.id === saved; }) ? saved : 'dark';
+  document.documentElement.setAttribute('data-theme', id);
+  sel.value = id;
+  sel.addEventListener('change', function () {
+    document.documentElement.setAttribute('data-theme', sel.value);
+    try { localStorage.setItem(KEY, sel.value); } catch (e) { /* ignore */ }
+  });
+})();
+</script>
 <div class="market" id="marketBar"><span>加载中…</span></div>
 <div id="conclusion"><span class="lead">结论</span><span id="conclusionText">…</span></div>
 <details id="help">

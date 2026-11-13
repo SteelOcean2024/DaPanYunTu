@@ -508,7 +508,9 @@
   //   web.ifzq.gtimg.cn   501 ❌（原来用的就是这个，被关了）
   // 两个都留着，一个挂了自动换另一个。
   var KLINE_HOSTS = ["https://ifzq.gtimg.cn", "https://web.ifzq.gtimg.cn"];
-  var KLINE_PATH = "/appstock/app/fqkline/get?param=";
+  // fqkline/get（前复权）两个域名都已变 501，改用 kline/kline（不复权）。
+  // 后者返回行的字段名仍然是 day，格式一模一样：[日期,开,收,高,低,量]。
+  var KLINE_PATH = "/appstock/app/kline/kline?param=";
   var KLINE_TIMEOUT_MS = 8000;
   var _klineCache = {};
   var _klinePending = {};   // 同一只在飞的请求：并起来，别发两次
@@ -542,7 +544,7 @@
   function fetchOneKline(host, marketCode, n) {
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, KLINE_TIMEOUT_MS);
-    return fetch(host + KLINE_PATH + marketCode + ",day,,," + n + ",qfq",
+    return fetch(host + KLINE_PATH + marketCode + ",day,,," + n,
                  ctrl ? { signal: ctrl.signal } : undefined)
       .then(function (r) {
         if (!r.ok) throw new Error("HTTP " + r.status);
