@@ -505,12 +505,14 @@
 
   var KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=";
   var _klineCache = {};
+  var _klinePending = {};   // 同一只在飞的请求：并起来，别发两次
 
   function fetchKline(marketCode, days) {
     var n = days || 120;
     var key = marketCode + ":" + n;
     if (_klineCache[key]) return Promise.resolve(_klineCache[key]);
-    return fetch(KLINE_URL + marketCode + ",day,,," + n + ",qfq")
+    if (_klinePending[key]) return _klinePending[key];
+    _klinePending[key] = fetch(KLINE_URL + marketCode + ",day,,," + n + ",qfq")
       .then(function (r) { return r.json(); })
       .then(function (d) {
         var node = d && d.data && d.data[marketCode];
@@ -519,8 +521,11 @@
           return { date: r[0], open: +r[1], close: +r[2], high: +r[3], low: +r[4], vol: +r[5] };
         });
         _klineCache[key] = out;
+        delete _klinePending[key];
         return out;
-      });
+      })
+      .catch(function (e) { delete _klinePending[key]; throw e; });
+    return _klinePending[key];
   }
 
   global.MarketData = {

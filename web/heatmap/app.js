@@ -843,6 +843,7 @@ canvas.addEventListener('mousemove', (e) => {
 
   const t = hitTest(sx, sy);
   if (t !== state.hovered) {
+    _lastMouse = { x: e.clientX, y: e.clientY };
     state.hovered = t;
     // 悬停在个股上时给「可点」的手型，否则是可拖拽的手型
     canvas.style.cursor = t ? 'pointer' : '';
@@ -918,6 +919,7 @@ let _detailCode = null;
 let _detailSub = null;
 let _detailSortKey = "changePct";
 let _detailTimer = null;
+let _lastMouse = null;   // 面板跟随指针用的最后位置
 
 /** 云图方块上的代码是 601138.SH，腾讯接口要的是 sh601138 */
 function tileMarketCode(t) {
@@ -1077,6 +1079,7 @@ function showDetail(t) {
       " · " + fmtPct(found.l2.changePct);
   }
   renderDetailList();
+  positionDetail();
   const mc = tileMarketCode(t);
   drawKline(null);
   if (mc && typeof MarketData !== "undefined" && MarketData.fetchKline) {
@@ -1088,19 +1091,43 @@ function showDetail(t) {
 
 /** 悬停有 110ms 防抖：鼠标划过时不要一路触发请求。 */
 function scheduleDetail(t) {
+  // 一换目标就**立刻**预取 K 线，不等 110ms 防抖——和防抖并行，体感快一半
   if (_detailTimer) clearTimeout(_detailTimer);
+  if (t && MarketData && MarketData.fetchKline) {
+    const mc0 = tileMarketCode(t);
+    if (mc0) MarketData.fetchKline(mc0, 120).catch(() => {});
+  }
   if (!t) {
-    _detailTimer = setTimeout(() => { detailEl.hidden = true; _detailCode = null; }, 220);
+    _detailTimer = setTimeout(() => { detailEl.hidden = true; _detailCode = null; }, 320);
     return;
   }
   if (_detailCode === t.code && !detailEl.hidden) return;
-  _detailTimer = setTimeout(() => showDetail(t), 110);
+  _detailTimer = setTimeout(() => showDetail(t), 70);
+}
+
+/** 把面板摆到指针旁边：默认在右下方，贴近右/下边界时自动翻到另一侧。 */
+function positionDetail() {
+  const m = _lastMouse || { x: innerWidth / 2, y: innerHeight / 2 };
+  const w = detailEl.offsetWidth || 372;
+  const h = detailEl.offsetHeight || 420;
+  let left = m.x + 20;
+  if (left + w > innerWidth - 8) left = m.x - w - 20;
+  if (left < 8) left = 8;
+  let top = m.y - 40;
+  if (top + h > innerHeight - 8) top = innerHeight - h - 8;
+  if (top < 8) top = 8;
+  detailEl.style.left = Math.round(left) + "px";
+  detailEl.style.top = Math.round(top) + "px";
 }
 
 document.getElementById("detailClose").addEventListener("click", () => {
   detailEl.hidden = true;
   _detailCode = null;
 });
+
+// 鼠标移进面板不要收起它——否则 320ms 后自动隐藏，列表根本点不到
+detailEl.addEventListener("mouseenter", () => { if (_detailTimer) clearTimeout(_detailTimer); });
+detailEl.addEventListener("mouseleave", () => scheduleDetail(null));
 document.getElementById("detailSort").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;

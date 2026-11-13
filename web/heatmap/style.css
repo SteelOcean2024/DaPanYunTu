@@ -542,3 +542,15 @@ a.brand-title:hover { color: var(--accent); }
 
 @media (max-width: 1099px) { .detail { display: none !important; } }
 @media (pointer: coarse) { .detail { display: none !important; } }
+
+/* 覆盖上一条：面板从「固定在右侧」改成**跟随指针浮动** */
+.detail {
+  position: fixed;
+  left: 0; top: 0; right: auto; bottom: auto;
+  width: 372px;
+  max-height: calc(100vh - 20px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .55);
+  background: rgba(17, 20, 26, .985);
+}
