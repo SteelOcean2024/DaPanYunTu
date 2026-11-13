@@ -168,6 +168,14 @@ class HeatmapHandler(BaseHTTPRequestHandler):
             self._serve_file(DATA_STATIC_DIR, path[len("/data/"):], path)
             return
 
+        # /heatmap 与 / 指向同一个页面。线上站点根是 /DaPanYunTu/，
+        # 云图在 /DaPanYunTu/heatmap/；本地补一个 /heatmap 路由，
+        # 这样两个页面之间的相对链接 ../heatmap/ 在两边都成立。
+        if path == "/heatmap" or path.startswith("/heatmap/"):
+            rel = path[len("/heatmap"):].strip("/") or "index.html"
+            self._serve_file(STATIC_DIR, rel, path)
+            return
+
         if path == "/sector" or path.startswith("/sector/"):
             rel = path[len("/sector"):].strip("/") or "index.html"
             self._serve_file(SECTOR_STATIC_DIR, rel, path)

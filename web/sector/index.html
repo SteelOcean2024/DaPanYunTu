@@ -92,7 +92,7 @@ tbody tr.unclassified { opacity: .55; }
     <span class="dot" id="conn"></span>
     <span id="clock">--:--:-- 更新</span>
     <span id="session" class="badge">--</span>
-    <a class="link" href="/">大盘云图 →</a>
+    <a class="link" href="../heatmap/">大盘云图 →</a>
   </div>
 </header>
 <div class="market" id="marketBar"><span>加载中…</span></div>
@@ -141,7 +141,7 @@ tbody tr.unclassified { opacity: .55; }
 </main>
 <script src="../shared/market.js"></script>
 <script>
-var API = "/api/sector/strength";
+var API = "../api/sector/strength";
 var state = { level: "l1", sortKey: "rsMedian", sortDir: -1, data: null };
 function fmtPct(v) {
   if (v === null || v === undefined || !isFinite(v)) return "--";
