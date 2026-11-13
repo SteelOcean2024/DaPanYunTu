@@ -5,7 +5,28 @@
 > **行业情况**（`/sector`）是一张板块强度榜（RS / 宽度 / 资金占比），看**强弱**。
 > 两者共用同一个后端和同一份行情快照，数据每 5 秒自动刷新。
 
-本地服务：`http://127.0.0.1:8770/` · 行业情况：`http://127.0.0.1:8770/sector`
+## 🚀 在线体验（点开就能用，不用装任何东西）
+
+**https://steelocean2024.github.io/DaPanYunTu/**
+
+纯静态托管在 GitHub Pages 上，**没有服务器**——浏览器直接连腾讯行情接口取数并自行计算，每 10 秒刷新。
+
+| 页面 | 地址 |
+|---|---|
+| 大盘云图（结构） | https://steelocean2024.github.io/DaPanYunTu/heatmap/ |
+| 行业情况（强弱） | https://steelocean2024.github.io/DaPanYunTu/sector/ |
+
+## 💻 本地运行（5 秒刷新 + 板块快照落盘）
+
+```bash
+python scripts/build_industry_map.py    # 首次：建行业映射缓存，约 50 秒，7 天有效
+python scripts/heatmap_server.py        # 起服务
+```
+
+→ 云图 `http://127.0.0.1:8770/` · 行业情况 `http://127.0.0.1:8770/sector`
+
+两条链路的差别：本地走 Python 后端（能落盘、能扩展、5 秒一轮）；线上走浏览器直连（零成本、10 秒一轮）。
+**页面是同一套**——后端优先，拿不到就自动切浏览器直连。
 
 > 📚 **想从头读懂这个项目？** 看 [`learning/`](learning/)：
 > 项目全貌 · 架构与数据流 · 指标口径 · 代码地图 · 踩坑清单 · 开发部署手册 · 带真实时间戳的项目日志。
@@ -104,6 +125,8 @@ python scripts/heatmap_server.py
 ---
 
 ## 四之二、部署到 GitHub Pages（无需服务器）
+
+**已部署：https://steelocean2024.github.io/DaPanYunTu/**
 
 线上地址结构（`web/` 就是站点根）：
 
