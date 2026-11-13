@@ -11,7 +11,7 @@
 <!-- ============ 左侧栏 ============ -->
 <aside class="sidebar">
   <header class="brand">
-    <div class="brand-title">大盘云图</div>
+    <a class="brand-title" href="../" title="回到首页">大盘云图</a>
     <div class="brand-sub" id="brandSub">本地数据 · 腾讯行情</div>
     <!-- 两个视图：这里是「结构视图」，/sector 是「强弱视图」 -->
     <a class="brand-link" href="../sector/">行业情况 →</a>
@@ -26,9 +26,11 @@
   <section class="panel">
     <div class="panel-title">面积指标</div>
     <div class="seg" id="metricSeg">
-      <button class="seg-btn active" data-metric="total_mcap">总市值</button>
-      <button class="seg-btn" data-metric="float_mcap">流通市值</button>
-      <button class="seg-btn" data-metric="amount">成交额</button>
+      <button class="seg-btn active" data-metric="total_mcap" title="面积 = 总市值（含限售股）。回答「这家公司有多大」">总市值</button>
+      <button class="seg-btn" data-metric="float_mcap" title="面积 = 流通市值（可在二级市场交易的股份）。看真实可交易的盘子有多大">流通市值</button>
+      <button class="seg-btn" data-metric="amount" title="面积 = 当日成交额。回答「钱堆在哪里」——切成它，高换手票会变大，银行会缩小">成交额</button>
+    </div>
+    <div class="panel-hint">面积代表规模；颜色 = 涨跌幅，按面积加权</div>
     </div>
   </section>
 
@@ -115,6 +117,34 @@
       <div class="loading-text" id="loadingText">正在获取全市场行情…</div>
     </div>
     <div class="tooltip" id="tooltip"></div>
+<!-- 悬停详情面板（桌面端）。覆盖在画布上而不是挤压它，否则一悬停云图就重排 -->
+<aside class="detail" id="detail" hidden>
+  <header class="detail-head">
+    <div class="detail-name" id="detailName">--</div>
+    <div class="detail-path" id="detailPath">--</div>
+    <button class="detail-close" id="detailClose" title="关闭">×</button>
+  </header>
+  <div class="detail-quote">
+    <span class="detail-price" id="detailPrice">--</span>
+    <span class="detail-pct" id="detailPct">--</span>
+    <span class="detail-meta" id="detailMeta">--</span>
+  </div>
+  <div class="detail-kline-wrap">
+    <div class="detail-kline-title"><span id="detailKlineLabel">日 K 线</span><span class="detail-ma" id="detailMa">--</span></div>
+    <canvas id="detailKline" width="360" height="150"></canvas>
+  </div>
+  <div class="detail-board-head">
+    <span class="detail-board-name" id="detailBoardName">--</span>
+    <span class="detail-board-stat" id="detailBoardStat">--</span>
+  </div>
+  <div class="detail-sort" id="detailSort">
+    <button data-sort="changePct" class="active">涨幅</button>
+    <button data-sort="amount">成交额</button>
+    <button data-sort="totalMarketCap">总市值</button>
+    <button data-sort="name">名称</button>
+  </div>
+  <ul class="detail-list" id="detailList"></ul>
+</aside>
   </div>
 
   <div class="legend">

@@ -495,12 +495,41 @@
     };
   }
 
+
+  /* ============================ 日 K 线 ============================
+   * 腾讯 fqkline 接口**允许跨域**（实测 fetch 直接返回 200），所以纯静态部署
+   * 也能自己拉 K 线画图，不需要后端。新浪的同类接口被 CORS 挡着，不要用。
+   *
+   * 返回行格式：[日期, 开, 收, 高, 低, 量]（腾讯的前复权格式就是这个顺序）。
+   * ================================================================ */
+
+  var KLINE_URL = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=";
+  var _klineCache = {};
+
+  function fetchKline(marketCode, days) {
+    var n = days || 120;
+    var key = marketCode + ":" + n;
+    if (_klineCache[key]) return Promise.resolve(_klineCache[key]);
+    return fetch(KLINE_URL + marketCode + ",day,,," + n + ",qfq")
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var node = d && d.data && d.data[marketCode];
+        var rows = (node && (node.qfqday || node.day)) || [];
+        var out = rows.map(function (r) {
+          return { date: r[0], open: +r[1], close: +r[2], high: +r[3], low: +r[4], vol: +r[5] };
+        });
+        _klineCache[key] = out;
+        return out;
+      });
+  }
+
   global.MarketData = {
     toMarketCode: toMarketCode,
     exchangeOf: exchangeOf,
     fetchQuotes: fetchQuotes,
     fetchIndexes: fetchIndexes,
     loadIndustryMap: loadIndustryMap,
+    fetchKline: fetchKline,
     fetchAll: fetchAll,
     buildTreemap: buildTreemap,
     computeSectorStrength: computeSectorStrength,

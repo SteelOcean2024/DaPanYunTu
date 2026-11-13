@@ -837,6 +837,7 @@ canvas.addEventListener('mousemove', (e) => {
     clampView();
     draw();
     hideTooltip();
+    scheduleDetail(null);
     return;
   }
 
@@ -847,6 +848,7 @@ canvas.addEventListener('mousemove', (e) => {
     canvas.style.cursor = t ? 'pointer' : '';
     draw();
   }
+  scheduleDetail(t);
   if (t) showTooltip(t, sx, sy);
   else hideTooltip();
 });
@@ -900,6 +902,213 @@ function openQuote(t) {
   a.remove();
 }
 
+
+/* ============================ 悬停详情面板 ============================
+ * 参考实现的核心交互：鼠标停在哪只票上，右侧就出这只票的日 K 线
+ * + 它所属二级行业的成分股列表（可排序、可点开）。
+ *
+ * 几个决定：
+ * - 面板**覆盖**在画布右侧，不挤压画布——否则鼠标一动云图就重排，非常难用。
+ * - 只在桌面端显示（窄屏 / 触摸设备由 CSS 隐藏）：手指没有 hover，面板会一直挡着云图。
+ * - K 线走腾讯 fqkline（实测允许跨域），结果按代码缓存，来回悬停不重复请求。
+ */
+const detailEl = document.getElementById("detail");
+const detailListEl = document.getElementById("detailList");
+let _detailCode = null;
+let _detailSub = null;
+let _detailSortKey = "changePct";
+let _detailTimer = null;
+
+/** 云图方块上的代码是 601138.SH，腾讯接口要的是 sh601138 */
+function tileMarketCode(t) {
+  const p = String(t.code).split(".");
+  return p[1] ? p[1].toLowerCase() + p[0] : null;
+}
+
+/** 用代码打开个股行情页。抽出来是因为方块和面板列表都要用。 */
+function openQuoteByCode(code) {
+  const url = QUOTE_URL_TEMPLATE.replace("{code}", String(code).split(".")[0]);
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** 在云图树里按二级行业名找节点（列表要用它的 children）。 */
+function findSubBoard(name) {
+  const tree = state.tree;
+  if (!tree) return null;
+  for (const l1 of tree.nodes) {
+    for (const l2 of l1.children) {
+      if (l2.name === name) return { l1, l2 };
+    }
+  }
+  return null;
+}
+
+function renderDetailList() {
+  detailListEl.innerHTML = "";
+  if (!_detailSub) return;
+  const key = _detailSortKey;
+  const rows = _detailSub.children.slice();
+  rows.sort((a, b) => {
+    if (key === "name") return String(a.name).localeCompare(String(b.name), "zh");
+    return (b[key] || 0) - (a[key] || 0);
+  });
+  const frag = document.createDocumentFragment();
+  rows.slice(0, 300).forEach((r, i) => {
+    const li = document.createElement("li");
+    li.dataset.code = r.code;
+    li.title = r.name + " " + r.code + "（点击打开行情页）";
+    const rank = document.createElement("span");
+    rank.className = "d-rank";
+    rank.textContent = String(i + 1);
+    const nm = document.createElement("span");
+    nm.className = "d-name";
+    nm.textContent = r.name;
+    const pr = document.createElement("span");
+    pr.className = "d-price";
+    pr.textContent = Number(r.price).toFixed(2);
+    const pc = document.createElement("span");
+    pc.className = "d-pct " + pctClass(r.changePct);
+    pc.textContent = fmtPct(r.changePct);
+    li.append(rank, nm, pr, pc);
+    li.addEventListener("click", () => openQuoteByCode(r.code));
+    frag.appendChild(li);
+  });
+  detailListEl.appendChild(frag);
+}
+
+/** 画日 K 线：蜡烛 + MA5/10/30。数据没到就画个占位字。 */
+function drawKline(rows) {
+  const c = document.getElementById("detailKline");
+  if (!c) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth || 360;
+  const h = 150;
+  c.width = Math.round(w * dpr);
+  c.height = Math.round(h * dpr);
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  if (!rows || rows.length < 2) {
+    g.fillStyle = "#5c6473";
+    g.font = "11px sans-serif";
+    g.fillText("K 线加载中…", 10, h / 2);
+    return;
+  }
+  const padL = 4, padR = 36, padT = 8, padB = 14;
+  const cw = w - padL - padR, ch = h - padT - padB;
+  const sma = (n) => rows.map((row, i) => {
+    if (i < n - 1) return null;
+    let s = 0;
+    for (let k = i - n + 1; k <= i; k++) s += rows[k].close;
+    return s / n;
+  });
+  const series = [sma(5), sma(10), sma(30)];
+  let lo = Infinity, hi = -Infinity;
+  for (const r of rows) { lo = Math.min(lo, r.low); hi = Math.max(hi, r.high); }
+  for (const arr of series) for (const v of arr) if (v) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  const span = (hi - lo) || 1;
+  const yOf = (v) => padT + ch - ((v - lo) / span) * ch;
+  const xOf = (i) => padL + (i * cw) / (rows.length - 1);
+  const bw = Math.max(1, (cw / rows.length) * 0.6);
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const col = r.close >= r.open ? "#e05252" : "#2fa05c";
+    g.strokeStyle = col;
+    g.fillStyle = col;
+    g.beginPath();
+    g.moveTo(xOf(i), yOf(r.high));
+    g.lineTo(xOf(i), yOf(r.low));
+    g.stroke();
+    const y1 = yOf(Math.max(r.open, r.close));
+    const y2 = yOf(Math.min(r.open, r.close));
+    g.fillRect(xOf(i) - bw / 2, y1, bw, Math.max(1, y2 - y1));
+  }
+  const colors = ["#f5c542", "#4a9eff", "#c77dff"];
+  g.lineWidth = 1;
+  series.forEach((arr, si) => {
+    g.strokeStyle = colors[si];
+    g.beginPath();
+    let started = false;
+    for (let i = 0; i < arr.length; i++) {
+      if (!arr[i]) continue;
+      if (!started) { g.moveTo(xOf(i), yOf(arr[i])); started = true; }
+      else g.lineTo(xOf(i), yOf(arr[i]));
+    }
+    g.stroke();
+  });
+  g.fillStyle = "#5c6473";
+  g.font = "10px sans-serif";
+  g.fillText(hi.toFixed(2), w - padR + 4, yOf(hi) + 4);
+  g.fillText(lo.toFixed(2), w - padR + 4, yOf(lo));
+  const last = series.map((a) => a[a.length - 1]);
+  const fmt = (v) => (v ? v.toFixed(2) : "--");
+  document.getElementById("detailMa").textContent =
+    "MA5 " + fmt(last[0]) + "  MA10 " + fmt(last[1]) + "  MA30 " + fmt(last[2]);
+}
+
+function showDetail(t) {
+  if (!detailEl) return;
+  _detailCode = t.code;
+  detailEl.hidden = false;
+  document.getElementById("detailName").textContent = t.name;
+  document.getElementById("detailPath").textContent =
+    String(t.code).split(".")[0] + " · " + t.boardName + " › " + t.subBoardName;
+  document.getElementById("detailPrice").textContent = t.price.toFixed(2);
+  const pcEl = document.getElementById("detailPct");
+  pcEl.textContent = fmtPct(t.changePct);
+  pcEl.className = "detail-pct " + pctClass(t.changePct);
+  document.getElementById("detailMeta").textContent =
+    "成交 " + fmtMoney(t.turnoverAmount) + " · 总市值 " + fmtMoney(t.totalMarketCap);
+  const found = findSubBoard(t.subBoardName);
+  _detailSub = found ? found.l2 : null;
+  if (found) {
+    let up = 0;
+    for (const c of found.l2.children) if (c.changePct > 0) up++;
+    document.getElementById("detailBoardName").textContent =
+      found.l1.name + " · " + found.l2.name;
+    document.getElementById("detailBoardStat").textContent =
+      found.l2.stockCount + " 只 · 涨 " + up + " 跌 " + (found.l2.stockCount - up) +
+      " · " + fmtPct(found.l2.changePct);
+  }
+  renderDetailList();
+  const mc = tileMarketCode(t);
+  drawKline(null);
+  if (mc && typeof MarketData !== "undefined" && MarketData.fetchKline) {
+    MarketData.fetchKline(mc, 120)
+      .then((rows) => { if (_detailCode === t.code) drawKline(rows); })
+      .catch(() => {});
+  }
+}
+
+/** 悬停有 110ms 防抖：鼠标划过时不要一路触发请求。 */
+function scheduleDetail(t) {
+  if (_detailTimer) clearTimeout(_detailTimer);
+  if (!t) {
+    _detailTimer = setTimeout(() => { detailEl.hidden = true; _detailCode = null; }, 220);
+    return;
+  }
+  if (_detailCode === t.code && !detailEl.hidden) return;
+  _detailTimer = setTimeout(() => showDetail(t), 110);
+}
+
+document.getElementById("detailClose").addEventListener("click", () => {
+  detailEl.hidden = true;
+  _detailCode = null;
+});
+document.getElementById("detailSort").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  document.querySelectorAll("#detailSort button").forEach((x) => x.classList.remove("active"));
+  b.classList.add("active");
+  _detailSortKey = b.dataset.sort;
+  renderDetailList();
+});
 
 /* ============================ 触摸交互 ============================
  * 桌面端的鼠标事件在触摸设备上只有「点按」能靠浏览器合成的 click 生效，
