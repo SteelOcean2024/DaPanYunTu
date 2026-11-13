@@ -567,8 +567,8 @@ a.brand-title:hover { color: var(--accent); }
   --canvas-bg:     #0f1115;
   --board-h1-bg:   rgba(8, 10, 13, 0.72);
   --board-h2-bg:   rgba(10, 12, 16, 0.55);
-  --board-line:    rgba(255, 255, 255, 0.16);
-  --board-line-1:  rgba(255, 255, 255, 0.42);
+  --board-line:    rgba(255, 255, 255, 0.34);
+  --board-line-1:  rgba(255, 255, 255, 0.68);
   --band-text:     rgba(255, 255, 255, 0.97);
   --band-text-dim: rgba(255, 255, 255, 0.45);
   --hover-line:    rgba(255, 255, 255, 0.95);
@@ -589,8 +589,8 @@ html[data-theme="light"] {
   --canvas-bg:     #e9edf2;
   --board-h1-bg:   rgba(255, 255, 255, 0.90);
   --board-h2-bg:   rgba(255, 255, 255, 0.74);
-  --board-line:    rgba(20, 26, 34, 0.22);
-  --board-line-1:  rgba(20, 26, 34, 0.52);
+  --board-line:    rgba(20, 26, 34, 0.36);
+  --board-line-1:  rgba(20, 26, 34, 0.72);
   --band-text:     #141a22;
   --band-text-dim: rgba(20, 26, 34, 0.55);
   --hover-line:    #10151c;
@@ -611,8 +611,8 @@ html[data-theme="blue"] {
   --canvas-bg:     #08131f;
   --board-h1-bg:   rgba(3, 12, 24, 0.74);
   --board-h2-bg:   rgba(5, 16, 30, 0.56);
-  --board-line:    rgba(140, 190, 255, 0.20);
-  --board-line-1:  rgba(150, 200, 255, 0.46);
+  --board-line:    rgba(140, 190, 255, 0.38);
+  --board-line-1:  rgba(150, 200, 255, 0.70);
   --band-text:     rgba(255, 255, 255, 0.97);
   --band-text-dim: rgba(200, 225, 255, 0.50);
   --hover-line:    #ffffff;
@@ -633,8 +633,8 @@ html[data-theme="warm"] {
   --canvas-bg:     #ece4d6;
   --board-h1-bg:   rgba(255, 252, 245, 0.92);
   --board-h2-bg:   rgba(255, 252, 245, 0.76);
-  --board-line:    rgba(60, 50, 30, 0.22);
-  --board-line-1:  rgba(60, 50, 30, 0.52);
+  --board-line:    rgba(60, 50, 30, 0.36);
+  --board-line-1:  rgba(60, 50, 30, 0.72);
   --band-text:     #2b2418;
   --band-text-dim: rgba(43, 36, 24, 0.55);
   --hover-line:    #2b2418;
