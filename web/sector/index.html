@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行业情况 · 板块强度</title>
+<style>
+:root {
+  --bg: #0f1115; --panel: #161920; --panel-2: #1c2029; --border: #262b36;
+  --text: #e6e9ef; --text-dim: #8b93a3; --text-faint: #5c6473;
+  --up: #e05252; --down: #2fa05c; --accent: #4a9eff;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 13px; }
+body { display: flex; flex-direction: column; }
+.up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--text-dim); }
+header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; flex: 0 0 auto;
+  background: var(--panel); border-bottom: 1px solid var(--border); }
+.brand { font-size: 15px; font-weight: 600; letter-spacing: .5px; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { background: transparent; border: 0; color: var(--text-dim); padding: 5px 12px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.seg button.active { background: var(--panel-2); color: var(--text); }
+.seg button:hover { color: var(--text); }
+.status { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--text-dim); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
+.dot.live { background: var(--down); animation: pulse 2s ease-out infinite; }
+.dot.err { background: var(--up); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(47,160,92,.55); } 70% { box-shadow: 0 0 0 7px rgba(47,160,92,0); } 100% { box-shadow: 0 0 0 0 rgba(47,160,92,0); } }
+.badge { border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 11px; color: var(--text-faint); }
+.badge.closed { color: #d8a657; border-color: #5a4620; }
+.link { color: var(--accent); text-decoration: none; font-size: 12px; }
+.link:hover { text-decoration: underline; }
+.market { display: flex; gap: 16px; padding: 8px 16px; color: var(--text-dim); font-size: 12px;
+  border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.market b { font-weight: 600; }
+#conclusion { padding: 8px 16px; background: var(--panel-2); border-bottom: 1px solid var(--border); line-height: 1.6; }
+#conclusion .lead { color: var(--text-faint); margin-right: 8px; font-size: 12px; }
+details#help { margin: 10px 16px 0; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; }
+details#help summary { cursor: pointer; padding: 9px 12px; color: var(--text); user-select: none; }
+details#help summary::marker { color: var(--text-faint); }
+details#help .body { padding: 2px 16px 14px; border-top: 1px solid var(--border); color: var(--text-dim); line-height: 1.85; font-size: 12.5px; }
+details#help h4 { margin: 14px 0 4px; color: var(--text); font-weight: 600; font-size: 12.5px; }
+details#help b { color: var(--text); }
+details#help .k { color: var(--accent); }
+details#help .warn { color: #d8a657; }
+details#help ol { margin: 4px 0 0; padding-left: 20px; }
+details#help li { margin-bottom: 6px; }
+main { flex: 1 1 auto; overflow: auto; padding: 12px 16px 28px; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+thead th { position: sticky; top: 0; background: var(--bg); z-index: 1; text-align: right;
+  font-weight: 500; color: var(--text-faint); font-size: 12px; padding: 6px 8px;
+  border-bottom: 1px solid var(--border); white-space: nowrap; }
+thead th[data-key] { cursor: pointer; }
+thead th[data-key]:hover { color: var(--text); }
+thead th:nth-child(1), thead th:nth-child(2) { text-align: left; }
+.arrow { color: var(--accent); font-size: 10px; }
+.caps { color: var(--text-faint); font-size: 10px; display: block; font-weight: 400; }
+tbody td { padding: 3px 8px; border-bottom: 1px solid rgba(38,43,54,.5); text-align: right; white-space: nowrap; }
+tbody td:nth-child(1), tbody td:nth-child(2) { text-align: left; }
+tbody tr:hover { background: var(--panel); }
+tbody tr.unclassified { opacity: .55; }
+.rank { color: var(--text-faint); font-size: 11px; }
+.name { font-weight: 500; }
+.sub { color: var(--text-faint); font-size: 11px; margin-left: 6px; }
+.rsbar { position: relative; height: 13px; width: 120px; background: var(--panel-2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.rsbar::after { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #3a4050; }
+.rsbar i { position: absolute; top: 0; bottom: 0; }
+.rsbar i.up { left: 50%; background: var(--up); }
+.rsbar i.down { right: 50%; background: var(--down); }
+.rsval { display: inline-block; width: 54px; margin-left: 8px; }
+.bwbar { position: relative; height: 5px; width: 56px; background: var(--panel-2); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; }
+.bwbar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--text-faint); }
+.bwbar i.strong { background: var(--down); }
+.bwval { display: inline-block; width: 42px; margin-left: 6px; }
+.share { color: var(--text-dim); }
+.lead { color: var(--text-dim); }
+@media (max-width: 820px) {
+  header { flex-wrap: wrap; gap: 10px; } .status { margin-left: 0; } .rsbar { width: 66px; }
+  details#help { margin-left: 8px; margin-right: 8px; } main { padding: 8px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">行业情况</div>
+  <div class="seg" id="levelSeg">
+    <button data-level="l1" class="active">一级行业</button>
+    <button data-level="l2">二级行业</button>
+  </div>
+  <div class="status">
+    <span class="dot" id="conn"></span>
+    <span id="clock">--:--:-- 更新</span>
+    <span id="session" class="badge">--</span>
+    <a class="link" href="/">大盘云图 →</a>
+  </div>
+</header>
+<div class="market" id="marketBar"><span>加载中…</span></div>
+<div id="conclusion"><span class="lead">结论</span><span id="conclusionText">…</span></div>
+<details id="help" open>
+  <summary>怎么看这一页（点开 / 收起）</summary>
+  <div class="body">
+    <h4>这一页回答一个问题：今天哪个板块真的在动</h4>
+    涨跌幅只告诉你<b>结果</b>，它丢了三件事——跑赢没跑赢、真动还是假动、普涨还是龙头独走。
+    下面几列就是来补这三件事的，<b>按这个顺序读</b>：
+    <ol>
+      <li><b class="k">RS（相对大盘）</b>——谁跑赢。算法是「板块中位数涨幅 − 全市场中位数涨幅」。红条向右 = 跑赢，绿条向左 = 跑输。<span class="warn">别只看涨跌幅</span>：普跌日所有板块的涨跌幅都是负的，但 RS 为正的那个才是钱在进的地方。</li>
+      <li><b class="k">宽度（上涨占比）</b>——真动还是假动。板块里有多少比例的票在涨。<b>≥70%</b> 是全板块在动；<b>≤40%</b> 说明只是少数龙头在拉，别当板块行情。</li>
+      <li><b class="k">资金占比</b>——钱在哪。这个板块的成交额占全市场的比例。<b>它比涨跌幅更早</b>：涨跌幅是结果，资金占比是原因。产业级消息出来那天，相关板块的资金占比会先跳，价格随后才跟上。</li>
+      <li><b class="k">龙头</b>——谁在动。板块内成交额最大的那只票。「宽度低 + 龙头大涨」就是典型的<b>龙头独走</b>。</li>
+    </ol>
+    <h4>两个口径提醒</h4>
+    <ul>
+      <li>「中位数」不是加权平均。<b>中石油涨 ≠ 石油产业涨</b>，所以中位数代表「典型个股」，加权平均代表「指数」。</li>
+      <li>颜色沿用 A 股习惯：<span class="up">红涨</span> / <span class="down">绿跌</span>。</li>
+    </ul>
+    <h4>刷新与休市</h4>
+    <ul>
+      <li>后台每 <b>5 秒</b>拉一轮全市场行情，页面每 5 秒取一次；右上角时间就是最近一次取数时间。</li>
+      <li>不在交易时段（交易日 9:30–11:30 / 13:00–15:00 之外）显示的是<b>最近一个交易日的收盘快照</b>，数字不动是正常的——此时右上角会亮出「休市」。</li>
+      <li>节假日不做判断（只看星期与钟点），所以节假日会显示成盘中。</li>
+    </ul>
+  </div>
+</details>
+<main>
+  <table>
+    <thead>
+      <tr id="headRow">
+        <th>#</th>
+        <th data-key="name" title="申万行业名称，小字是「上涨家数/成分家数」">板块<span class="caps">涨/总家数</span><span class="arrow"></span></th>
+        <th data-key="medianPct" title="板块成分股涨跌幅的中位数——代表「典型个股」，不是加权平均">中位数<span class="caps">典型个股</span><span class="arrow"></span></th>
+        <th data-key="rsMedian" title="板块中位数 − 全市场中位数。红条向右=跑赢大盘，绿条向左=跑输。排序主键">RS 相对大盘<span class="caps">谁跑赢</span><span class="arrow"></span></th>
+        <th data-key="breadth" title="上涨家数占比。≥70% 是全板块在动；≤40% 说明只有龙头在拉">宽度<span class="caps">涨家数占比</span><span class="arrow"></span></th>
+        <th data-key="amountShare" title="该板块成交额 ÷ 全市场成交额。比涨跌幅更早，因为它是原因、涨跌幅是结果">资金占比<span class="caps">钱在哪</span><span class="arrow"></span></th>
+        <th data-key="limitUpCount" title="板块内涨停家数，反映情绪强度">涨停<span class="caps">情绪</span><span class="arrow"></span></th>
+        <th title="板块内成交额最大的一只票——谁在动">龙头<span class="caps">成交额最大</span></th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</main>
+<script>
+var API = "/api/sector/strength";
+var state = { level: "l1", sortKey: "rsMedian", sortDir: -1, data: null };
+function fmtPct(v) {
+  if (v === null || v === undefined || !isFinite(v)) return "--";
+  return (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+}
+function pctClass(v) { return v > 0 ? "up" : v < 0 ? "down" : "flat"; }
+function fmtTime(iso) {
+  var m = String(iso || "").match(/T(\d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : "--:--:--";
+}
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function isTradingNow() {
+  var d = new Date();
+  if (d.getDay() === 0 || d.getDay() === 6) return false;
+  var m = d.getHours() * 60 + d.getMinutes();
+  return (m >= 570 && m <= 690) || (m >= 780 && m <= 900);
+}
+function rsBar(rs, maxAbs) {
+  var wrap = el("span", "rsbar");
+  var i = el("i", rs >= 0 ? "up" : "down");
+  i.style.width = Math.min(50, Math.abs(rs || 0) / maxAbs * 50).toFixed(1) + "%";
+  wrap.appendChild(i);
+  var out = el("span");
+  out.appendChild(wrap);
+  out.appendChild(el("span", "rsval " + pctClass(rs), fmtPct(rs)));
+  return out;
+}
+function bwBar(breadth) {
+  var pct = Math.round((breadth || 0) * 100);
+  var wrap = el("span", "bwbar");
+  var i = el("i", pct >= 70 ? "strong" : null);
+  i.style.width = pct + "%";
+  wrap.appendChild(i);
+  var out = el("span");
+  out.appendChild(wrap);
+  out.appendChild(el("span", "bwval", pct + "%"));
+  return out;
+}
+function fetchStrength() {
+  fetch(API, { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      state.data = d;
+      document.getElementById("conn").className = "dot " + (isTradingNow() ? "live" : "");
+      render();
+    })
+    .catch(function (e) {
+      document.getElementById("conn").className = "dot err";
+      var bar = document.getElementById("marketBar");
+      bar.textContent = "";
+      bar.appendChild(el("span", "up", "取数失败：" + e.message));
+    });
+}
+function renderClock() {
+  var live = isTradingNow();
+  document.getElementById("clock").textContent =
+    (state.data ? fmtTime(state.data.updatedAt) : "--:--:--") + " 更新";
+  var b = document.getElementById("session");
+  b.textContent = live ? "盘中 · 每 5 秒刷新" : "休市 · 收盘快照";
+  b.className = "badge" + (live ? "" : " closed");
+}
+function renderMarket() {
+  var m = state.data.market || {};
+  var bar = document.getElementById("marketBar");
+  bar.textContent = "";
+  var s1 = el("span");
+  s1.appendChild(document.createTextNode("全市场中位数 "));
+  s1.appendChild(el("b", pctClass(m.medianPct), fmtPct(m.medianPct)));
+  bar.appendChild(s1);
+  var s2 = el("span");
+  s2.appendChild(document.createTextNode("上涨 "));
+  s2.appendChild(el("b", null, m.upCount + "/" + m.stockCount));
+  bar.appendChild(s2);
+  var s3 = el("span");
+  s3.appendChild(document.createTextNode("涨停 "));
+  s3.appendChild(el("b", null, String(m.limitUpCount)));
+  bar.appendChild(s3);
+  var s4 = el("span");
+  s4.appendChild(document.createTextNode("成交额 "));
+  s4.appendChild(el("b", null, ((m.amount || 0) / 1e8).toFixed(0) + " 亿"));
+  bar.appendChild(s4);
+}
+function renderConclusion() {
+  var m = state.data.market || {};
+  var rows = state.data[state.level] || [];
+  var box = document.getElementById("conclusionText");
+  box.textContent = "";
+  if (!rows.length) { box.textContent = "…"; return; }
+  var dir = m.medianPct > 0.3 ? "普涨" : m.medianPct < -0.3 ? "普跌" : "平盘";
+  var upRatio = m.stockCount ? Math.round(m.upCount / m.stockCount * 100) : 0;
+  box.appendChild(document.createTextNode(
+    "全市场" + dir + "（中位数 " + fmtPct(m.medianPct) + "，" + upRatio + "% 的票在涨）。"
+  ));
+  var winners = rows.filter(function (r) {
+    return r.rsMedian > 0 && r.name !== "未分类";
+  });
+  var line = rows.length + " 个行业里 " + winners.length + " 个跑赢大盘";
+  if (winners.length) {
+    line += "，最强 " + winners[0].name + "（RS " + fmtPct(winners[0].rsMedian) +
+            "、宽度 " + Math.round(winners[0].breadth * 100) + "%）";
+  } else {
+    line += "——一个都没有，全线跑输";
+  }
+  box.appendChild(el("b", null, line));
+  var richest = rows.slice().sort(function (a, b) { return b.amountShare - a.amountShare; })[0];
+  if (richest) {
+    box.appendChild(document.createTextNode(
+      "。资金最集中：" + richest.name + " " + (richest.amountShare * 100).toFixed(1) + "%"
+    ));
+  }
+}
+function sortedRows() {
+  var rows = (state.data[state.level] || []).slice();
+  var k = state.sortKey, dir = state.sortDir;
+  rows.sort(function (a, b) {
+    var x = a[k], y = b[k];
+    if (typeof x === "string" || typeof y === "string") {
+      return String(x).localeCompare(String(y), "zh") * dir;
+    }
+    return ((x || 0) - (y || 0)) * dir;
+  });
+  return rows;
+}
+function render() {
+  renderClock();
+  renderMarket();
+  renderConclusion();
+  var rows = sortedRows();
+  var maxAbs = 0.01;
+  rows.forEach(function (r) { maxAbs = Math.max(maxAbs, Math.abs(r.rsMedian || 0)); });
+  var tb = document.getElementById("tbody");
+  tb.textContent = "";
+  var frag = document.createDocumentFragment();
+  rows.forEach(function (r, i) {
+    var tr = el("tr", r.name === "未分类" ? "unclassified" : null);
+    tr.appendChild(el("td", "rank", String(i + 1)));
+    var tdName = el("td");
+    tdName.appendChild(el("span", "name", r.name));
+    tdName.appendChild(el("span", "sub", r.upCount + "/" + r.stockCount));
+    tr.appendChild(tdName);
+    tr.appendChild(el("td", pctClass(r.medianPct), fmtPct(r.medianPct)));
+    var tdRs = el("td");
+    tdRs.appendChild(rsBar(r.rsMedian, maxAbs));
+    tr.appendChild(tdRs);
+    var tdBw = el("td");
+    tdBw.appendChild(bwBar(r.breadth));
+    tr.appendChild(tdBw);
+    tr.appendChild(el("td", "share", ((r.amountShare || 0) * 100).toFixed(2) + "%"));
+    tr.appendChild(el("td", r.limitUpCount > 0 ? "up" : "flat", String(r.limitUpCount)));
+    var tdLead = el("td");
+    if (r.leaderName) {
+      tdLead.appendChild(el("span", "lead", r.leaderName + " "));
+      tdLead.appendChild(el("span", pctClass(r.leaderPct), fmtPct(r.leaderPct)));
+    }
+    tr.appendChild(tdLead);
+    frag.appendChild(tr);
+  });
+  tb.appendChild(frag);
+  document.querySelectorAll("#headRow th").forEach(function (th) {
+    var a = th.querySelector(".arrow");
+    if (!a) return;
+    a.textContent = (th.dataset.key === state.sortKey) ? (state.sortDir < 0 ? "▼" : "▲") : "";
+  });
+}
+document.getElementById("levelSeg").addEventListener("click", function (e) {
+  var b = e.target.closest("button");
+  if (!b) return;
+  document.querySelectorAll("#levelSeg button").forEach(function (x) { x.classList.remove("active"); });
+  b.classList.add("active");
+  state.level = b.dataset.level;
+  render();
+});
+document.getElementById("headRow").addEventListener("click", function (e) {
+  var th = e.target.closest("th");
+  if (!th || !th.dataset.key) return;
+  var k = th.dataset.key;
+  if (state.sortKey === k) state.sortDir = -state.sortDir;
+  else { state.sortKey = k; state.sortDir = (k === "name") ? 1 : -1; }
+  render();
+});
+setInterval(renderClock, 1000);
+fetchStrength();
+setInterval(fetchStrength, 5000);
+</script>
+</body>
+</html>

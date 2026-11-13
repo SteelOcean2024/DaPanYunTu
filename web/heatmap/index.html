@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>大盘云图 · A股市场热力图</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ 左侧栏 ============ -->
+<aside class="sidebar">
+  <header class="brand">
+    <div class="brand-title">大盘云图</div>
+    <div class="brand-sub" id="brandSub">本地数据 · 腾讯行情</div>
+    <!-- 两个视图：这里是「结构视图」，/sector 是「强弱视图」 -->
+    <a class="brand-link" href="/sector">行业情况 →</a>
+  </header>
+
+  <div class="refresh-box">
+    <span class="dot" id="connDot"></span>
+    <span class="refresh-label">最近刷新</span>
+    <span class="refresh-time" id="refreshTime">--:--:--</span>
+  </div>
+
+  <section class="panel">
+    <div class="panel-title">面积指标</div>
+    <div class="seg" id="metricSeg">
+      <button class="seg-btn active" data-metric="total_mcap">总市值</button>
+      <button class="seg-btn" data-metric="float_mcap">流通市值</button>
+      <button class="seg-btn" data-metric="amount">成交额</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">涨跌家数</div>
+    <div class="counts">
+      <div class="count up">
+        <span class="count-label">上涨</span>
+        <span class="count-value" id="advanceCount">--</span>
+      </div>
+      <div class="count flat">
+        <span class="count-label">平盘</span>
+        <span class="count-value" id="flatCount">--</span>
+      </div>
+      <div class="count down">
+        <span class="count-label">下跌</span>
+        <span class="count-value" id="declineCount">--</span>
+      </div>
+    </div>
+    <div class="bar" id="breadthBar"><i></i><i></i><i></i></div>
+    <div class="meta-row">
+      <span>涨停 <b class="up-text" id="limitUp">--</b></span>
+      <span>跌停 <b class="down-text" id="limitDown">--</b></span>
+      <span>共 <b id="stockCount">--</b> 只</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">成交额</div>
+    <div class="turnover" id="turnover">--</div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-title">主要指数</div>
+    <ul class="index-list" id="indexList"></ul>
+  </section>
+
+  <section class="panel grow">
+    <div class="panel-title">一级行业 <span class="hint">点击聚焦</span></div>
+    <ul class="board-list" id="boardList"></ul>
+  </section>
+
+  <footer class="sidebar-foot">
+    <button class="ghost-btn" id="resetView">重置视图</button>
+    <div class="foot-note">
+      滚轮缩放 · 拖拽平移 · 单击板块聚焦<br>
+      数据仅供个人参考，不构成投资建议
+    </div>
+  </footer>
+</aside>
+
+<!-- ============ 主区域 ============ -->
+<main class="stage">
+  <div class="stage-head">
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="展开/收起侧栏" title="侧栏">☰</button>
+    <div class="stage-title" id="stageTitle">A 股全图</div>
+    <div class="stage-meta">
+      <span id="statusText">正在加载…</span>
+      <span class="sep">·</span>
+      <span id="latencyText">--</span>
+      <span class="sep">·</span>
+      <span id="universeText">--</span>
+    </div>
+    <div class="stage-actions">
+      <label class="auto-label">
+        <input type="checkbox" id="autoRefresh" checked>
+        <span>自动刷新</span>
+      </label>
+      <select id="intervalSelect" class="mini-select">
+        <option value="3000">3 秒</option>
+        <option value="5000" selected>5 秒</option>
+        <option value="10000">10 秒</option>
+        <option value="30000">30 秒</option>
+        <option value="60000">60 秒</option>
+      </select>
+      <button class="ghost-btn" id="manualRefresh">立即刷新</button>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="treemap"></canvas>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loadingText">正在获取全市场行情…</div>
+    </div>
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+  <div class="legend">
+    <span class="legend-cap">-4%</span>
+    <span class="legend-cap">-2%</span>
+    <div class="legend-bar" id="legendBar"></div>
+    <span class="legend-cap">0</span>
+    <span class="legend-cap">+2%</span>
+    <span class="legend-cap">+4%</span>
+    <span class="legend-note" id="legendNote">颜色 = 涨跌幅（红涨绿跌）· 面积 = 总市值</span>
+  </div>
+</main>
+
+<!-- 窄屏时侧栏以抽屉形式浮出，点背景关闭 -->
+<div class="backdrop" id="backdrop"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
