@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>大盘云图 · DaPanYunTu</title>
+<style>
+  :root { --bg:#0f1115; --panel:#161920; --border:#262b36; --text:#e6e9ef; --dim:#8b93a3; --faint:#5c6473; --accent:#4a9eff; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; min-height:100%; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif; font-size:14px; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 64px 24px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: .5px; }
+  .sub { color: var(--dim); margin-bottom: 34px; line-height: 1.7; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  a.card { display:block; padding: 20px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; text-decoration: none; color: inherit; transition: border-color .15s; }
+  a.card:hover { border-color: var(--accent); }
+  .card h2 { margin: 0 0 8px; font-size: 16px; }
+  .card p { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.7; }
+  .card .tag { display:inline-block; margin-top: 12px; font-size: 11px; color: var(--faint); }
+  .note { margin-top: 28px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px;
+    color: var(--dim); font-size: 12.5px; line-height: 1.8; }
+  .note b { color: var(--text); }
+  code { background: var(--panel); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  @media (max-width: 680px) { .cards { grid-template-columns: 1fr; } .wrap { padding: 32px 16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>大盘云图 · DaPanYunTu</h1>
+  <div class="sub">
+    Understand the market, know the market conditions, conduct in-depth research, and see through the changing situation.
+  </div>
+  <div class="cards">
+    <a class="card" href="heatmap/">
+      <h2>大盘云图 →</h2>
+      <p>全市场 5500+ 只按「一级行业 → 二级行业」铺成 treemap。面积代表规模，颜色代表涨跌幅，一眼看清板块轮动与权重分布。</p>
+      <span class="tag">结构视图</span>
+    </a>
+    <a class="card" href="sector/">
+      <h2>行业情况 →</h2>
+      <p>板块强度榜：RS 相对大盘、宽度（涨家数占比）、资金占比、龙头。回答「哪个板块真的在动」，而不只是「谁涨了」。</p>
+      <span class="tag">强弱视图</span>
+    </a>
+  </div>
+  <div class="note">
+    <b>数据说明</b>：本页部署在 GitHub Pages 上，没有 Python 后端；
+    两个页面都是<b>浏览器直连腾讯行情接口</b>（用 &lt;script&gt; 标签加载，不受同源策略限制）自行取数与计算，
+    每 10 秒刷新一次。行业分类来自申万（缓存于 <code>data/industry-map.json</code>）。<br>
+    想要 5 秒刷新与后端计算，本地跑：<code>python scripts/heatmap_server.py</code> 然后访问 <code>127.0.0.1:8770</code>。
+  </div>
+</div>
+</body>
+</html>

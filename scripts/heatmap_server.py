@@ -59,9 +59,13 @@ log = get_logger(__name__)
 STATIC_DIR: Path = WEB_DIR / "heatmap"
 #: 行业情况页面（强弱视图）
 SECTOR_STATIC_DIR: Path = WEB_DIR / "sector"
+#: 前端共享资源（两个页面共用；静态部署时浏览器直连取数走这里）
+SHARED_STATIC_DIR: Path = WEB_DIR / "shared"
+#: 前端静态数据（行业映射导出，供无后端部署使用）
+DATA_STATIC_DIR: Path = WEB_DIR / "data"
 
 #: 允许的静态文件后缀（白名单，避免任意文件读取）
-ALLOWED_SUFFIX = {".html", ".css", ".js", ".ico", ".png", ".svg", ".map"}
+ALLOWED_SUFFIX = {".html", ".css", ".js", ".json", ".ico", ".png", ".svg", ".map"}
 
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
@@ -155,6 +159,15 @@ class HeatmapHandler(BaseHTTPRequestHandler):
 
     def _handle_static(self, path: str) -> None:
         # /sector 是第二套页面（行业情况），其余路径仍归云图
+        # /shared 与 /data 是前端共享资源：本地也提供，
+        # 这样「浏览器直连取数」这条静态部署链路能在本地被验证。
+        if path.startswith("/shared/"):
+            self._serve_file(SHARED_STATIC_DIR, path[len("/shared/"):], path)
+            return
+        if path.startswith("/data/"):
+            self._serve_file(DATA_STATIC_DIR, path[len("/data/"):], path)
+            return
+
         if path == "/sector" or path.startswith("/sector/"):
             rel = path[len("/sector"):].strip("/") or "index.html"
             self._serve_file(SECTOR_STATIC_DIR, rel, path)

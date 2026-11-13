@@ -98,6 +98,54 @@ python scripts/heatmap_server.py
 # 强弱视图 http://127.0.0.1:8770/sector
 ```
 
+---
+
+## 四之二、部署到 GitHub Pages（无需服务器）
+
+线上地址结构（`web/` 就是站点根）：
+
+```
+/            落地页（两个入口）
+/heatmap/    大盘云图
+/sector/     行业情况
+/shared/     两个页面共用的前端数据层
+/data/       行业映射导出（89 KB）
+```
+
+### 为什么静态托管也能实时
+
+腾讯的行情接口不给 CORS 头，但它是「赋值给全局变量的脚本」（`v_sh600000="..."`），
+**`<script>` 标签不受同源策略限制**，所以浏览器能直接拿全市场行情。
+`web/shared/market.js` 就是干这个的：分批（600/批）× 8 并发，5580 只约 2 秒。
+
+完整链路：加载行业映射 → 批量拉行情 → 按板块聚合成 treemap / 强度榜，全部在浏览器里完成。
+
+### 代价（必须知道）
+
+`web/shared/market.js` 是 `src/heatmap/quotes.py` + `src/analysis/sector.py` + `src/heatmap/treemap.py`
+的**第二份实现**。两份逻辑必须同步维护：
+
+| | 权威实现 | 用途 |
+|---|---|---|
+| Python | `src/` | 本地/服务器：5 秒刷新、可落盘、可扩展 |
+| JavaScript | `web/shared/market.js` | 纯静态托管：浏览器直连，10 秒刷新 |
+
+**改动任何一边的口径，另一边要一起改。** 两边已逐项对齐验证过：
+全市场汇总（涨跌家数/涨停/成交额）、32 个一级行业的 value 与涨跌幅、
+132 个二级行业、5580 只个股——全部零差异。
+
+### 发布
+
+`.github/workflows/pages.yml` 在推送到 `main` 后自动把 `web/` 发布到 Pages。
+仓库 **Settings → Pages → Source** 选 **GitHub Actions** 即可。
+
+行业映射变了（申万半年调一次）要重新导出并提交：
+
+```bash
+python scripts/export_web_data.py
+```
+
+
 可选参数：
 
 ```bash

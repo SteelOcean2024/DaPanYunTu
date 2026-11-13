@@ -1036,6 +1036,49 @@ const connDot = document.getElementById('connDot');
 const loadingEl = document.getElementById('loading');
 const loadingText = document.getElementById('loadingText');
 
+
+/** 把一份云图数据应用到界面。后端与浏览器直连两条路共用。 */
+function applyTree(tree, ms) {
+  state.tree = tree;
+  state.layout = buildLayout(tree, state.canvasSize.w, state.canvasSize.h);
+
+  renderSummary(tree.summary);
+  renderBoardList(tree);
+
+  document.getElementById('refreshTime').textContent = fmtTime(tree.updatedAt);
+  document.getElementById('latencyText').textContent = `${Math.round(ms)} ms`;
+  document.getElementById('universeText').textContent =
+    `${tree.stockCount.toLocaleString()} 只 / ${tree.boardCount} 板块`;
+  document.getElementById('statusText').textContent = state.clientMode ? '静态模式' : '正常';
+  document.getElementById('legendNote').textContent =
+    `颜色 = 涨跌幅（红涨绿跌）· 面积 = ${tree.metricLabel || ''}`;
+
+  connDot.className = 'dot ok';
+  loadingEl.classList.add('hidden');
+  draw();
+
+  // 静态模式下每轮要自己拉全市场行情（约 3 秒），把轮询放慢到 10 秒
+  if (state.clientMode && !state.clientRescheduled) {
+    state.clientRescheduled = true;
+    scheduleRefresh();
+  }
+}
+
+/**
+ * 静态部署（GitHub Pages 等没有 Python 后端）时，由浏览器直连腾讯自行组装。
+ * 数据层在 web/shared/market.js，与后端同构（已逐项对齐验证）。
+ * 8 秒内的口径切换直接复用缓存，不必重新拉行情。
+ */
+async function treeFromClient() {
+  if (!window.MarketData) throw new Error('缺少 shared/market.js');
+  const now = Date.now();
+  if (!state.clientAll || now - (state.clientAt || 0) > 8000) {
+    state.clientAll = await window.MarketData.fetchAll({ base: '../' });
+    state.clientAt = now;
+  }
+  return window.MarketData.buildTreemap(state.metric);
+}
+
 async function fetchTreemap() {
   if (state.fetching) return;
   state.fetching = true;
@@ -1048,31 +1091,21 @@ async function fetchTreemap() {
     });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const tree = await resp.json();
-    const ms = performance.now() - t0;
-
-    state.tree = tree;
-    state.layout = buildLayout(tree, state.canvasSize.w, state.canvasSize.h);
-
-    renderSummary(tree.summary);
-    renderBoardList(tree);
-
-    document.getElementById('refreshTime').textContent = fmtTime(tree.updatedAt);
-    document.getElementById('latencyText').textContent = `${Math.round(ms)} ms`;
-    document.getElementById('universeText').textContent =
-      `${tree.stockCount.toLocaleString()} 只 / ${tree.boardCount} 板块`;
-    document.getElementById('statusText').textContent = '正常';
-    document.getElementById('legendNote').textContent =
-      `颜色 = 涨跌幅（红涨绿跌）· 面积 = ${tree.metricLabel || ''}`;
-
-    connDot.className = 'dot ok';
-    loadingEl.classList.add('hidden');
-    draw();
+    state.clientMode = false;
+    applyTree(tree, performance.now() - t0);
   } catch (err) {
-    connDot.className = 'dot err';
-    document.getElementById('statusText').textContent = '取数失败';
-    loadingText.textContent = '取数失败：' + err.message + '（自动重试中）';
-    loadingEl.classList.remove('hidden');
-    console.error('[heatmap] 取数失败', err);
+    try {
+      if (!state.clientMode) console.warn('[heatmap] 后端不可用，切换浏览器直连', err.message);
+      state.clientMode = true;
+      const tree = await treeFromClient();
+      applyTree(tree, performance.now() - t0);
+    } catch (e2) {
+      connDot.className = 'dot err';
+      document.getElementById('statusText').textContent = '取数失败';
+      loadingText.textContent = '取数失败：' + e2.message + '（自动重试中）';
+      loadingEl.classList.remove('hidden');
+      console.error('[heatmap] 取数失败', e2);
+    }
   } finally {
     state.fetching = false;
   }
@@ -1082,7 +1115,9 @@ function scheduleRefresh() {
   if (state.timer) clearInterval(state.timer);
   state.timer = null;
   if (state.autoRefresh) {
-    state.timer = setInterval(fetchTreemap, state.intervalMs);
+    // 静态模式下浏览器要自己拉全市场行情，放慢到至少 10 秒
+    const every = state.clientMode ? Math.max(state.intervalMs, 10000) : state.intervalMs;
+    state.timer = setInterval(fetchTreemap, every);
   }
 }
 

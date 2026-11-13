@@ -116,7 +116,7 @@ tbody tr.unclassified { opacity: .55; }
     </ul>
     <h4>刷新与休市</h4>
     <ul>
-      <li>后台每 <b>5 秒</b>拉一轮全市场行情，页面每 5 秒取一次；右上角时间就是最近一次取数时间。</li>
+      <li>有后端时每 <b>5 秒</b>刷新；纯静态部署（GitHub Pages）没有后端，由浏览器直接向腾讯取数，每 <b>10 秒</b>一轮。右上角时间就是最近一次取数时间。</li>
       <li>不在交易时段（交易日 9:30–11:30 / 13:00–15:00 之外）显示的是<b>最近一个交易日的收盘快照</b>，数字不动是正常的——此时右上角会亮出「休市」。</li>
       <li>节假日不做判断（只看星期与钟点），所以节假日会显示成盘中。</li>
     </ul>
@@ -139,6 +139,7 @@ tbody tr.unclassified { opacity: .55; }
     <tbody id="tbody"></tbody>
   </table>
 </main>
+<script src="../shared/market.js"></script>
 <script>
 var API = "/api/sector/strength";
 var state = { level: "l1", sortKey: "rsMedian", sortDir: -1, data: null };
@@ -184,27 +185,51 @@ function bwBar(breadth) {
   out.appendChild(el("span", "bwval", pct + "%"));
   return out;
 }
+var POLL_SERVER = 5000;        // 有后端：5 秒
+var POLL_CLIENT = 10000;       // 静态部署：浏览器直连腾讯，放慢到 10 秒，别把人接口打太狠
+var _clientMode = false;
+
+function setConn(ok) {
+  document.getElementById("conn").className =
+    "dot " + (ok ? (isTradingNow() ? "live" : "") : "err");
+}
+function applyData(d) { state.data = d; setConn(true); render(); }
+function showFail(msg) {
+  setConn(false);
+  var bar = document.getElementById("marketBar");
+  bar.textContent = "";
+  bar.appendChild(el("span", "up", msg));
+}
+
+// 静态部署（GitHub Pages 等）没有 /api/sector/strength，改由浏览器直连腾讯自行计算。
+// 这条链路只在没有后端时启用，本地跑服务时仍然走后端（一份权威口径）。
+function loadClientSide() {
+  if (!window.MarketData) { showFail("取数失败：缺少 shared/market.js"); return; }
+  if (state.clientBusy) return;
+  state.clientBusy = true;
+  _clientMode = true;
+  window.MarketData.fetchStrengthClient({ base: "../", level: "both" })
+    .then(function (d) {
+      applyData(d);
+      if (state.timer) clearInterval(state.timer);
+      state.timer = setInterval(fetchStrength, POLL_CLIENT);
+    })
+    .catch(function (e) { showFail("浏览器直连失败：" + e.message); })
+    .then(function () { state.clientBusy = false; });
+}
+
 function fetchStrength() {
   fetch(API, { cache: "no-store" })
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      state.data = d;
-      document.getElementById("conn").className = "dot " + (isTradingNow() ? "live" : "");
-      render();
-    })
-    .catch(function (e) {
-      document.getElementById("conn").className = "dot err";
-      var bar = document.getElementById("marketBar");
-      bar.textContent = "";
-      bar.appendChild(el("span", "up", "取数失败：" + e.message));
-    });
+    .then(function (r) { if (!r.ok) throw new Error("no-backend"); return r.json(); })
+    .then(applyData)
+    .catch(function () { loadClientSide(); });
 }
 function renderClock() {
   var live = isTradingNow();
   document.getElementById("clock").textContent =
     (state.data ? fmtTime(state.data.updatedAt) : "--:--:--") + " 更新";
   var b = document.getElementById("session");
-  b.textContent = live ? "盘中 · 每 5 秒刷新" : "休市 · 收盘快照";
+  b.textContent = live ? ("盘中 · 每 " + (_clientMode ? "10" : "5") + " 秒刷新") : "休市 · 收盘快照";
   b.className = "badge" + (live ? "" : " closed");
 }
 function renderMarket() {
@@ -328,7 +353,7 @@ document.getElementById("headRow").addEventListener("click", function (e) {
 });
 setInterval(renderClock, 1000);
 fetchStrength();
-setInterval(fetchStrength, 5000);
+state.timer = setInterval(fetchStrength, POLL_SERVER);
 </script>
 </body>
 </html>
