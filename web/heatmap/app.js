@@ -1665,6 +1665,48 @@ function filterTree(tree, id) {
   });
 }
 
+/* ============================ 标的类型 =============================
+ * 股票 / ETF / 可转债 / 港股。切换的是**整个数据集**（不是筛子），
+ * 所以要清缓存重新取数；指数筛选只对 A 股有意义，其余三类隐藏那一行。
+ * ================================================================= */
+
+const MARKETS = [
+  { id: 'stock', name: '股票' },
+  { id: 'etf',   name: 'ETF' },
+  { id: 'bond',  name: '可转债' },
+  { id: 'hk',    name: '港股' },
+];
+
+function renderMarketTabs() {
+  const box = document.getElementById('marketTabs');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const t of MARKETS) {
+    const b = document.createElement('button');
+    b.textContent = t.name;
+    if (t.id === state.market) b.className = 'active';
+    b.addEventListener('click', () => setMarket(t.id));
+    box.appendChild(b);
+  }
+}
+
+function setMarket(id) {
+  if (state.market === id) return;
+  state.market = id;
+  state.clientAll = null;
+  state.clientMarket = null;
+  state.clientKind = null;
+  state.clientAt = 0;
+  state.filter = 'all';
+  state.rawTree = null;
+  renderMarketTabs();
+  renderIndexTabs();
+  // 「沪深300 成分」这类筛选只对 A 股成立，其余三类没有这个概念
+  document.getElementById('indexTabs').style.display = id === 'stock' ? '' : 'none';
+  loadingEl.classList.remove('hidden');
+  loadingText.textContent = '正在获取' + ((MARKETS.find((m) => m.id === id) || {}).name || '') + '行情…';
+  fetchTreemap();
+}
 function renderIndexTabs() {
   const box = document.getElementById('indexTabs');
   if (!box) return;
@@ -1722,6 +1764,14 @@ document.getElementById('detailStar').addEventListener('click', () => {
 async function treeFromClient() {
   if (!window.MarketData) throw new Error('缺少 shared/market.js');
   const now = Date.now();
+  if (state.market && state.market !== 'stock') {
+    if (!(state.clientMarket && state.clientKind === state.market) || now - (state.clientAt || 0) > 8000) {
+      state.clientMarket = await window.MarketData.fetchMarket(state.market, '../');
+      state.clientKind = state.market;
+      state.clientAt = now;
+    }
+    return window.MarketData.buildMarketTree(state.market, state.metric);
+  }
   if (!state.clientAll || now - (state.clientAt || 0) > 8000) {
     state.clientAll = await window.MarketData.fetchAll({ base: '../' });
     state.clientAt = now;
@@ -1736,6 +1786,8 @@ async function fetchTreemap() {
 
   const t0 = performance.now();
   try {
+    // 非股票标的没有后端接口，直接走浏览器直连（数据层在 shared/market.js）
+    if (state.market && state.market !== 'stock') throw new Error('非股票标的走浏览器直连');
     const resp = await fetch(`${API.treemap}?metric=${encodeURIComponent(state.metric)}`, {
       cache: 'no-store',
     });
@@ -1838,6 +1890,9 @@ window.addEventListener('keydown', (e) => {
 })();
 
 resizeCanvas();
+// 标的类型的启动也放这里（MARKETS 是 const，放前面会踩 TDZ）
+state.market = 'stock';
+renderMarketTabs();
 // 指数筛选的启动放在这里：INDEX_TABS / _idxMembers 是 const/let，
 // 在文件靠后的位置才初始化，放前面会踩 TDZ。
 state.filter = 'all';

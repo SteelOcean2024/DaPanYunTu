@@ -563,6 +563,167 @@
       .catch(function (e) { clearTimeout(timer); throw e; });
   }
 
+  /* ================ 标的类型：股票 / ETF / 可转债 / 港股 ================
+   * 股票走申万行业地图（buildTreemap）；其余三类**没有行业分类**，
+   * 按「名称归类」分一级类别、二级按交易所。
+   *
+   * 代码清单由 scripts/export_universe.py 预导出到 data/universe.json ——
+   * 纯静态站不能在运行时抓列表接口（浏览器 CORS 挡着），只能预导出。
+   * ================================================================= */
+
+  var MARKETS = [
+    { id: "stock", name: "股票" },
+    { id: "etf",   name: "ETF" },
+    { id: "bond",  name: "可转债" },
+    { id: "hk",    name: "港股" },
+  ];
+  var _universe = null;
+  var _marketCache = null;
+
+  function loadUniverse(base) {
+    if (_universe) return Promise.resolve(_universe);
+    return fetch((base || "") + "data/universe.json")
+      .then(function (r) { return r.json(); })
+      .then(function (d) { _universe = d || {}; return _universe; });
+  }
+
+  /** 归类规则。**顺序有意义**：跨境和债券必须排在宽基前面，
+   *  否则「恒生50」「国债300」会被宽基里的 50 / 300 先抓走。 */
+  var CLASSIFY = {
+    etf: [
+      ["跨境",     /恒生|恒指|港股|H股|纳斯达克|标普|道琼斯|日经|德国|法国|东南亚|越南|沙特|美国|中概|海外/],
+      ["债券货币", /债|国开|货币|现金|理财|短融/],
+      ["宽基指数", /300|500|1000|50|180|科创|创业|中证A|上证|深证|沪深|MSCI|北证|全指|A50|红利/],
+      ["医药",     /医药|生物|医疗|创新药|疫苗|器械|中药/],
+      ["科技芯片", /芯片|半导体|科技|软件|计算机|通信|电子|人工智能|智能|光模块|机器人|游戏|传媒/],
+      ["新能源",   /新能源|光伏|电池|储能|锂|风电|汽车|碳中和|有色|稀土/],
+      ["消费",     /消费|白酒|食品|饮料|家电|旅游|农业|养殖|零售|教育/],
+      ["金融地产", /证券|银行|保险|金融|地产|房地产|基建/],
+      ["军工资源", /军工|国防|航空|航天|钢|煤|石油|化工|能源|黄金|电力/],
+    ],
+    hk: [
+      ["银行",       /银行/],
+      ["保险",       /保险/],
+      ["地产",       /地产|置业/],
+      ["医药",       /医药|生物|医疗|药业|健康/],
+      ["能源资源",   /石油|能源|煤|矿业|钢铁|有色|黄金|化工/],
+      ["科技互联网", /科技|软件|网络|互联网|信息|半导体|电子|智能|数码/],
+      ["消费",       /食品|饮料|啤酒|乳业|零售|餐饮|体育|旅游|服装/],
+      ["金融证券",   /证券|金融|资本|资产|交易所|信托/],
+      ["汽车",       /汽车/],
+      ["电信公用",   /电信|电讯|电力|燃气|水务|铁路|航空|港口|航运|公路/],
+    ],
+  };
+  var EX_NAME = { SH: "沪市", SZ: "深市", HK: "港股" };
+
+  function classify(kind, name) {
+    var rules = CLASSIFY[kind] || [];
+    for (var i = 0; i < rules.length; i++) if (rules[i][1].test(name)) return rules[i][0];
+    return "其他";
+  }
+
+  /** 拉某一类标的的行情。股票以外都走这里。 */
+  function fetchMarket(kind, base, onProgress) {
+    return loadUniverse(base).then(function (u) {
+      var list = u[kind] || [];
+      var codes = [];
+      for (var i = 0; i < list.length; i++) {
+        // toMarketCode 是 exchangeOf(code) + code，要的是**纯数字代码**；
+        // universe.json 里带 .SH/.SZ/.HK 后缀，必须先去掉，否则拼出 sh560890.SH。
+        var mc = toMarketCode(String(list[i].c).split(".")[0]);
+        if (mc) codes.push(mc);
+      }
+      return fetchQuotes(codes, onProgress).then(function (rows) {
+        _marketCache = { kind: kind, quotes: rows };
+        return _marketCache;
+      });
+    });
+  }
+
+  /** 非股票标的的云图：一级 = 名称归类，二级 = 交易所。 */
+  function buildMarketTree(kind, metric) {
+    if (!_marketCache) throw new Error("请先调用 fetchMarket()");
+    var m = METRIC_FIELD[metric] ? metric : "total_mcap";
+    var field = METRIC_FIELD[m];
+    var byCat = {}, order = [];
+    for (var i = 0; i < _marketCache.quotes.length; i++) {
+      var it = _marketCache.quotes[i];
+      if (!(it[field] > 0)) continue;
+      var cat = classify(kind, it.name);
+      if (!byCat[cat]) { byCat[cat] = {}; order.push(cat); }
+      var ex = EX_NAME[it.exchange] || it.exchange;
+      (byCat[cat][ex] = byCat[cat][ex] || []).push(it);
+    }
+    var nodes = [], kept = [];
+    for (var c = 0; c < order.length; c++) {
+      var cat = order[c], byEx = byCat[cat], subs = [], all = [];
+      for (var ex in byEx) {
+        if (!Object.prototype.hasOwnProperty.call(byEx, ex)) continue;
+        var g = byEx[ex];
+        subs.push({
+          code: "", name: ex,
+          value: sumField(g, field),
+          changePct: round(weightedChange(g, field), 2),
+          stockCount: g.length,
+          children: g.slice().sort(function (p, r) { return r[field] - p[field]; })
+                     .map(function (r) { return stockNode(r, field); }),
+        });
+        all = all.concat(g);
+      }
+      subs.sort(byValueDesc);
+      nodes.push({
+        code: "", name: cat,
+        value: sumField(all, field),
+        changePct: round(weightedChange(all, field), 2),
+        stockCount: all.length,
+        children: subs,
+      });
+      kept = kept.concat(all);
+    }
+    nodes.sort(byValueDesc);
+
+    for (var n1 = 0; n1 < nodes.length; n1++) {
+      var l1n = nodes[n1];
+      for (var n2 = 0; n2 < l1n.children.length; n2++) {
+        var l2n = l1n.children[n2];
+        for (var n3 = 0; n3 < l2n.children.length; n3++) {
+          l2n.children[n3].boardName = l1n.name;
+          l2n.children[n3].subBoardName = l2n.name;
+        }
+      }
+    }
+
+    var up = 0, flat = 0, dn = 0, lu = 0, ld = 0;
+    for (var k = 0; k < kept.length; k++) {
+      var s = kept[k];
+      if (s.changePct > 0) up++; else if (s.changePct < 0) dn++; else flat++;
+      if (s.limitUp) lu++;
+      if (s.limitDown) ld++;
+    }
+    var d = new Date(), pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    var stamp = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+                "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds());
+    var mk = null;
+    for (var z = 0; z < MARKETS.length; z++) if (MARKETS[z].id === kind) mk = MARKETS[z];
+    return {
+      updatedAt: stamp,
+      metric: m,
+      metricLabel: METRIC_LABEL[m],
+      market: kind,
+      marketLabel: mk ? mk.name : kind,
+      stockCount: kept.length,
+      boardCount: nodes.length,
+      nodes: nodes,
+      summary: {
+        stockCount: kept.length, boardCount: nodes.length,
+        advanceCount: up, flatCount: flat, declineCount: dn,
+        limitUpCount: lu, limitDownCount: ld,
+        turnoverAmount: sumField(kept, "amount"),
+      },
+      source: "browser",
+    };
+  }
+
   global.MarketData = {
     toMarketCode: toMarketCode,
     exchangeOf: exchangeOf,
@@ -572,6 +733,9 @@
     fetchKline: fetchKline,
     fetchAll: fetchAll,
     buildTreemap: buildTreemap,
+    MARKETS: MARKETS,
+    fetchMarket: fetchMarket,
+    buildMarketTree: buildMarketTree,
     computeSectorStrength: computeSectorStrength,
     fetchStrengthClient: fetchStrengthClient,
   };
