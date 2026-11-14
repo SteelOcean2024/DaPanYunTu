@@ -1674,7 +1674,9 @@ const MARKETS = [
   { id: 'stock', name: '股票' },
   { id: 'etf',   name: 'ETF' },
   { id: 'bond',  name: '可转债' },
-  { id: 'hk',    name: '港股' },
+  // 港股暂时禁用：腾讯港股的字段布局和 A 股不同（成交额单位是元不是万元、
+  // 市值在别的位置），parseQuote 还得加一条港股分支。先别放一个点进去就空白的 tab。
+  { id: 'hk',    name: '港股（待做）', disabled: true },
 ];
 
 function renderMarketTabs() {
@@ -1684,6 +1686,12 @@ function renderMarketTabs() {
   for (const t of MARKETS) {
     const b = document.createElement('button');
     b.textContent = t.name;
+    if (t.disabled) {
+      b.disabled = true;
+      b.title = '港股需要单独解析字段，还没做';
+      box.appendChild(b);
+      continue;
+    }
     if (t.id === state.market) b.className = 'active';
     b.addEventListener('click', () => setMarket(t.id));
     box.appendChild(b);
