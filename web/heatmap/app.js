@@ -1589,8 +1589,11 @@ function matchIndex(code, id) {
   const pure = pureOf(code);
   const ex = (String(code).split('.')[1] || '').toUpperCase();
   switch (id) {
-    case 'sha':    return ex === 'SH' && /^60/.test(pure);
-    case 'sza':    return ex === 'SZ' && /^00/.test(pure);
+    // 上证A股 = 沪市全部（含科创板 688），深证A股 = 深市全部（含创业板 30）。
+    // 原来写成 /^60/ 和 /^00/，把科创板和创业板漏在外面 —— 分档加起来只有 3550，
+    // 而全图是 5580。创业板 / 科创板是它们的**子集**，和同花顺的选法一致。
+    case 'sha':    return ex === 'SH';
+    case 'sza':    return ex === 'SZ';
     case 'cyb':    return ex === 'SZ' && /^30/.test(pure);
     case 'kcb':    return ex === 'SH' && /^68/.test(pure);
     case 'bj':     return ex === 'BJ';
