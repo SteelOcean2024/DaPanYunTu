@@ -36,7 +36,8 @@ const API = {
 const COLOR_RANGE = 4.0;
 
 /**
- * 色阶。**不是自己调的，是从参考实现（大盘云图）的图例色带上逐点采样出来的。**
+ * 色阶曲线。颜色本身从 CSS 变量取（--scale-flat / --scale-up / --scale-down），
+ * 这里只留「在 0% 与 ±4% 之间插值到什么比例」这条形状。
  *
  * 关键特征：**两端鲜艳、中间暗**（0% 是暗蓝灰 #414554，±4% 是最饱和的绿/红）。
  *
@@ -44,21 +45,25 @@ const COLOR_RANGE = 4.0;
  * 满屏大跌时整张图糊成一片深色，大涨也是暗红，盘面看着发闷，
  * 而且「哪里跌得最狠」反而看不出来——最该跳出来的色块最不显眼。
  */
-const COLOR_STOPS = [
-  [-4.0, [0x0a, 0xd6, 0x48]],
-  [-3.2, [0x0b, 0xc3, 0x44]],
-  [-2.4, [0x15, 0xb1, 0x47]],
-  [-1.6, [0x1f, 0x97, 0x48]],
-  [-1.2, [0x27, 0x8c, 0x4b]],
-  [-0.8, [0x34, 0x6a, 0x50]],
-  [0.0, [0x41, 0x45, 0x54]],
-  [0.4, [0xaa, 0x3f, 0x48]],
-  [0.8, [0xbf, 0x3c, 0x42]],
-  [1.6, [0xd5, 0x3b, 0x40]],
-  [2.4, [0xe0, 0x38, 0x3c]],
-  [3.2, [0xf3, 0x37, 0x3a]],
-  [4.0, [0xf5, 0x36, 0x39]],
+const COLOR_CURVE = [
+  [-4.0, 1.0], [-3.2, 0.92], [-2.4, 0.85], [-1.6, 0.75], [-1.2, 0.70], [-0.8, 0.55],
+  [0.0, 0.0],
+  [0.4, 0.62], [0.8, 0.80], [1.2, 0.88], [1.6, 0.93], [2.4, 0.97], [3.2, 1.0], [4.0, 1.0],
 ];
+
+/** '#rrggbb' 或 'rgb(r,g,b)' → [r,g,b]；取不到就退回中性灰。 */
+function parseColor(v, fallback) {
+  if (!v) return fallback;
+  const s = String(v).trim();
+  if (s.charAt(0) === '#') {
+    const h = s.slice(1);
+    if (h.length === 3) return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+    if (h.length >= 6) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+    return fallback;
+  }
+  const m = s.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  return m ? [+m[1], +m[2], +m[3]] : fallback;
+}
 
 /** 个股行情页地址模板（同花顺个股页）。要换成东财/雪球改这里一行即可。 */
 const QUOTE_URL_TEMPLATE = 'https://stockpage.10jqka.com.cn/{code}/';
@@ -161,13 +166,18 @@ function colorFor(pct) {
  * （红色在 0 → +0.4% 之间就跳掉了一大半亮度），套函数反而对不上。
  */
 function computeColor(pct) {
+  const tk = tokens();
   const p = clamp(pct, -COLOR_RANGE, COLOR_RANGE);
+  const FLAT = [141, 141, 141];
+  const flat = parseColor(tk.scaleFlat, FLAT);
+  const end = parseColor(p < 0 ? tk.scaleDown : tk.scaleUp, p < 0 ? [7, 171, 75] : [255, 36, 54]);
   let i = 0;
-  while (i < COLOR_STOPS.length - 2 && p > COLOR_STOPS[i + 1][0]) i++;
-  const [p0, c0] = COLOR_STOPS[i];
-  const [p1, c1] = COLOR_STOPS[i + 1];
+  while (i < COLOR_CURVE.length - 2 && p > COLOR_CURVE[i + 1][0]) i++;
+  const [p0, m0] = COLOR_CURVE[i];
+  const [p1, m1] = COLOR_CURVE[i + 1];
   const t = p1 === p0 ? 0 : (p - p0) / (p1 - p0);
-  const rgb = lerpColor(c0, c1, clamp(t, 0, 1));
+  const mix = clamp(m0 + (m1 - m0) * clamp(t, 0, 1), 0, 1);
+  const rgb = lerpColor(flat, end, mix);
   return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 }
 
@@ -350,10 +360,9 @@ function buildLayout(tree, W, H) {
  * ============================================================ */
 
 const THEMES = [
-  { id: 'dark', name: '深色' },
-  { id: 'light', name: '浅色' },
-  { id: 'blue', name: '蓝调' },
-  { id: 'warm', name: '米色' },
+  { id: 'light', name: '同花顺白' },
+  { id: 'dark', name: '同花顺黑' },
+  { id: 'blue', name: '同花顺蓝' },
 ];
 const THEME_KEY = 'dapanyuntu-theme';
 let _tk = null;
@@ -374,6 +383,11 @@ function tokens() {
     hover:       g('--hover-line', 'rgba(255,255,255,0.95)'),
     upLabel:     g('--up-label', '#ff9a9a'),
     downLabel:   g('--down-label', '#8ee0ab'),
+    // 色阶锚点：0% 与 ±4% 三处。**这三个必须读**，否则色阶用的是兜底色，
+    // 换主题时底板不会跟着变（涨跌端点碰巧同色，所以只错在 0% 那一档）。
+    scaleFlat:   g('--scale-flat', '#8d8d8d'),
+    scaleUp:     g('--scale-up', '#ff2436'),
+    scaleDown:   g('--scale-down', '#07ab4b'),
   };
   return _tk;
 }
@@ -382,13 +396,14 @@ function setTheme(id) {
   document.documentElement.setAttribute('data-theme', id);
   try { localStorage.setItem(THEME_KEY, id); } catch (e) { /* 隐私模式忽略 */ }
   _tk = null;   // 调色板缓存作废，下次 draw 重新读
+  _colorCache.clear();   // 色阶也跟着主题走，颜色缓存一起清
   draw();
 }
 
 function initTheme() {
   let saved = null;
   try { saved = localStorage.getItem(THEME_KEY); } catch (e) { /* ignore */ }
-  const id = THEMES.some((t) => t.id === saved) ? saved : 'dark';
+  const id = THEMES.some((t) => t.id === saved) ? saved : 'light';
   document.documentElement.setAttribute('data-theme', id);
   const sel = document.getElementById('themeSelect');
   if (sel) {

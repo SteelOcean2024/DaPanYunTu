@@ -6,22 +6,44 @@
    浅色底会让低饱和度色块糊成一片。
    ========================================================================== */
 
+/* ===== 同花顺白（默认）=====
+ * 颜色全部取自 10jqka 线上页面**实测**：
+ *   页面底 #f5f5f5 / 卡片 #ffffff / 主字 #252525 / 次字 #8d8d8d
+ *   涨 #ff2436 / 跌 #07ab4b / 强调蓝 #265ffc
+ */
 :root {
-  --bg:            #0f1115;
-  --panel:         #161920;
-  --panel-2:       #1c2029;
-  --border:        #262b36;
-  --text:          #e6e9ef;
-  --text-dim:      #8b93a3;
-  --text-faint:    #5c6473;
+  --bg:            #f5f5f5;
+  --panel:         #ffffff;
+  --panel-2:       #f2f2f2;
+  --border:        #e3e3e3;
+  --text:          #252525;
+  --text-dim:      #8d8d8d;
+  --text-faint:    #b0b0b0;
 
-  --up:            #e05252;
-  --up-strong:     #8e1b1b;
-  --down:          #2fa05c;
-  --down-strong:   #10512c;
-  --flat:          #4a4a4a;
+  --up:            #ff2436;
+  --up-strong:     #c8121f;
+  --down:          #07ab4b;
+  --down-strong:   #04702f;
+  --flat:          #8d8d8d;
 
-  --accent:        #4a9eff;
+  --accent:        #265ffc;
+
+  /* canvas 专用（app.js 用 getComputedStyle 读走） */
+  --canvas-bg:     #f5f5f5;
+  --board-h1-bg:   rgba(255, 255, 255, 0.92);
+  --board-h2-bg:   rgba(255, 255, 255, 0.78);
+  --board-line:    rgba(37, 37, 37, 0.22);
+  --board-line-1:  rgba(37, 37, 37, 0.58);
+  --band-text:     #252525;
+  --band-text-dim: rgba(37, 37, 37, 0.55);
+  --hover-line:    #252525;
+  --up-label:      #c8121f;
+  --down-label:    #04702f;
+
+  /* 色阶锚点：0% / +4% / -4% */
+  --scale-flat:    #dcdcdc;
+  --scale-up:      #ff2436;
+  --scale-down:    #07ab4b;
 
   --sidebar-w:     236px;
   --head-h:        44px;
@@ -562,84 +584,55 @@ a.brand-title:hover { color: var(--accent); }
    app.js 用 getComputedStyle 读走。**只能有一份定义**，否则切主题时 canvas 还是黑的。
    ========================================================================== */
 
-:root {
-  /* canvas 专用 */
-  --canvas-bg:     #0f1115;
-  --board-h1-bg:   rgba(8, 10, 13, 0.72);
-  --board-h2-bg:   rgba(10, 12, 16, 0.55);
-  --board-line:    rgba(255, 255, 255, 0.34);
-  --board-line-1:  rgba(255, 255, 255, 0.68);
-  --band-text:     rgba(255, 255, 255, 0.97);
-  --band-text-dim: rgba(255, 255, 255, 0.45);
-  --hover-line:    rgba(255, 255, 255, 0.95);
-  --up-label:      #ff9a9a;
-  --down-label:    #8ee0ab;
-}
 
-/* ---------- 浅色（白底）---------- */
-html[data-theme="light"] {
-  --bg:            #f2f4f7;
-  --panel:         #ffffff;
-  --panel-2:       #f6f8fa;
-  --border:        #d9dee6;
-  --text:          #141a22;
-  --text-dim:      #5b6472;
-  --text-faint:    #8a93a1;
-  --accent:        #1f6feb;
-  --canvas-bg:     #e9edf2;
-  --board-h1-bg:   rgba(255, 255, 255, 0.90);
-  --board-h2-bg:   rgba(255, 255, 255, 0.74);
-  --board-line:    rgba(20, 26, 34, 0.36);
-  --board-line-1:  rgba(20, 26, 34, 0.72);
-  --band-text:     #141a22;
-  --band-text-dim: rgba(20, 26, 34, 0.55);
-  --hover-line:    #10151c;
-  --up-label:      #b3261e;
-  --down-label:    #0f6b38;
-}
-
-/* ---------- 蓝调 ---------- */
-html[data-theme="blue"] {
-  --bg:            #08131f;
-  --panel:         #0d1f33;
-  --panel-2:       #12293f;
-  --border:        #1d3a58;
-  --text:          #dbe9f7;
-  --text-dim:      #8aa6c4;
-  --text-faint:    #5a7896;
-  --accent:        #4a9eff;
-  --canvas-bg:     #08131f;
-  --board-h1-bg:   rgba(3, 12, 24, 0.74);
-  --board-h2-bg:   rgba(5, 16, 30, 0.56);
-  --board-line:    rgba(140, 190, 255, 0.38);
-  --board-line-1:  rgba(150, 200, 255, 0.70);
-  --band-text:     rgba(255, 255, 255, 0.97);
-  --band-text-dim: rgba(200, 225, 255, 0.50);
+/* ---------- 同花顺黑 ---------- */
+html[data-theme="dark"] {
+  --bg:            #1a1a1a;
+  --panel:         #232323;
+  --panel-2:       #2b2b2b;
+  --border:        #383838;
+  --text:          #e8e8e8;
+  --text-dim:      #9a9a9a;
+  --text-faint:    #6b6b6b;
+  --accent:        #265ffc;
+  --canvas-bg:     #1a1a1a;
+  --board-h1-bg:   rgba(8, 8, 8, 0.78);
+  --board-h2-bg:   rgba(12, 12, 12, 0.60);
+  --board-line:    rgba(255, 255, 255, 0.20);
+  --board-line-1:  rgba(255, 255, 255, 0.48);
+  --band-text:     #f0f0f0;
+  --band-text-dim: rgba(255, 255, 255, 0.50);
   --hover-line:    #ffffff;
-  --up-label:      #ffb3b3;
-  --down-label:    #8fe6c4;
+  --up-label:      #ff7a86;
+  --down-label:    #6ee0a0;
+  --scale-flat:    #3c3c3c;
+  --scale-up:      #ff2436;
+  --scale-down:    #07ab4b;
 }
 
-/* ---------- 米色（护眼）---------- */
-html[data-theme="warm"] {
-  --bg:            #f5efe3;
-  --panel:         #fffaf1;
-  --panel-2:       #f8f2e7;
-  --border:        #ded3c0;
-  --text:          #2b2418;
-  --text-dim:      #6b6252;
-  --text-faint:    #9a9080;
-  --accent:        #b06a1f;
-  --canvas-bg:     #ece4d6;
-  --board-h1-bg:   rgba(255, 252, 245, 0.92);
-  --board-h2-bg:   rgba(255, 252, 245, 0.76);
-  --board-line:    rgba(60, 50, 30, 0.36);
-  --board-line-1:  rgba(60, 50, 30, 0.72);
-  --band-text:     #2b2418;
-  --band-text-dim: rgba(43, 36, 24, 0.55);
-  --hover-line:    #2b2418;
-  --up-label:      #a8261f;
-  --down-label:    #146b38;
+/* ---------- 同花顺蓝 ---------- */
+html[data-theme="blue"] {
+  --bg:            #eef3fb;
+  --panel:         #ffffff;
+  --panel-2:       #f4f7fd;
+  --border:        #d6e0f0;
+  --text:          #1b2b44;
+  --text-dim:      #64789a;
+  --text-faint:    #9aabc4;
+  --accent:        #265ffc;
+  --canvas-bg:     #eef3fb;
+  --board-h1-bg:   rgba(255, 255, 255, 0.93);
+  --board-h2-bg:   rgba(255, 255, 255, 0.80);
+  --board-line:    rgba(27, 43, 68, 0.22);
+  --board-line-1:  rgba(27, 43, 68, 0.56);
+  --band-text:     #1b2b44;
+  --band-text-dim: rgba(27, 43, 68, 0.55);
+  --hover-line:    #1b2b44;
+  --up-label:      #c8121f;
+  --down-label:    #04702f;
+  --scale-flat:    #d2dcea;
+  --scale-up:      #ff2436;
+  --scale-down:    #07ab4b;
 }
 
 /* 主题切换器 */
