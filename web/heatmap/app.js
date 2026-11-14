@@ -1674,9 +1674,7 @@ const MARKETS = [
   { id: 'stock', name: '股票' },
   { id: 'etf',   name: 'ETF' },
   { id: 'bond',  name: '可转债' },
-  // 港股暂时禁用：腾讯港股的字段布局和 A 股不同（成交额单位是元不是万元、
-  // 市值在别的位置），parseQuote 还得加一条港股分支。先别放一个点进去就空白的 tab。
-  { id: 'hk',    name: '港股（待做）', disabled: true },
+  { id: 'hk',    name: '港股' },
 ];
 
 function renderMarketTabs() {

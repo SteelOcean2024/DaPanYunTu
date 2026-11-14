@@ -78,24 +78,30 @@
     var price = num(fields[3]);
     if (price <= 0) return null;                       // 停牌/退市/无行情
     var ex = marketCode.slice(0, 2).toUpperCase();
-    if (ex !== "SH" && ex !== "SZ" && ex !== "BJ") return null;
-    var t = String(fields[30] || "");                  // 20261113150003
-    var quoteTime = t.length === 14
-      ? t.slice(0, 4) + "-" + t.slice(4, 6) + "-" + t.slice(6, 8) + "T" +
-        t.slice(8, 10) + ":" + t.slice(10, 12) + ":" + t.slice(12, 14)
-      : "";
+    var isHK = ex === "HK";
+    if (!isHK && ex !== "SH" && ex !== "SZ" && ex !== "BJ") return null;
+    // 时间格式两边不同：A 股 20261113150003，港股 2026/11/13 16:08:22
+    var t = String(fields[30] || "");
+    var quoteTime = isHK
+      ? t.replace(/\//g, "-").replace(" ", "T")
+      : (t.length === 14
+        ? t.slice(0, 4) + "-" + t.slice(4, 6) + "-" + t.slice(6, 8) + "T" +
+          t.slice(8, 10) + ":" + t.slice(10, 12) + ":" + t.slice(12, 14)
+        : "");
     return {
       code: fields[2] || marketCode.slice(2),
       name: (fields[1] || "").trim(),
       exchange: ex,
       price: price,
       changePct: num(fields[32]),
-      volume: num(fields[36]) * 100,
-      amount: num(fields[37]) * 1e4,
+      // 「[36] 是手、[37] 是万元」只对 A 股成立；港股 [36] 已经是股、[37] 是元。
+      volume: num(fields[36]) * (isHK ? 1 : 100),
+      amount: num(fields[37]) * (isHK ? 1 : 1e4),
       floatMcap: num(fields[44]) * 1e8,
       totalMcap: num(fields[45]) * 1e8,
-      limitUp: num(fields[47]),
-      limitDown: num(fields[48]),
+      // 港股没有涨跌停，[47]/[48] 是别的含义，不能当涨跌停价用。
+      limitUp: isHK ? -1 : num(fields[47]),
+      limitDown: isHK ? -1 : num(fields[48]),
       quoteTime: quoteTime,
     };
   }
@@ -645,7 +651,9 @@
       for (var i = 0; i < list.length; i++) {
         // toMarketCode 是 exchangeOf(code) + code，要的是**纯数字代码**；
         // universe.json 里带 .SH/.SZ/.HK 后缀，必须先去掉，否则拼出 sh560890.SH。
-        var mc = toMarketCode(String(list[i].c).split(".")[0]);
+        // exchangeOf("00700") 会因为 two === "00" 判成深市，港股必须显式加 hk 前缀。
+        var pure = String(list[i].c).split(".")[0];
+        var mc = kind === "hk" ? "hk" + pure : toMarketCode(pure);
         if (mc) codes.push(mc);
       }
       return fetchQuotes(codes, onProgress).then(function (rows) {
