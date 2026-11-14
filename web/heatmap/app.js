@@ -1577,7 +1577,7 @@ function pureOf(code) { return String(code).split('.')[0]; }
 
 function loadIndexMembers() {
   if (_idxMembers) return Promise.resolve(_idxMembers);
-  return fetch('../data/index-members.json')
+  return fetch('../data/index-members.json', { cache: 'no-store' })
     .then((r) => r.json())
     .then((d) => { _idxMembers = d || {}; return _idxMembers; })
     .catch(() => { _idxMembers = _idxMembers || {}; return _idxMembers; });
