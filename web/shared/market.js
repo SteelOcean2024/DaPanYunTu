@@ -413,16 +413,6 @@
     if (!_cache) throw new Error("请先调用 fetchAll()");
     var m = METRIC_FIELD[metric] ? metric : "total_mcap";
     var field = METRIC_FIELD[m];
-    // 港股与可转债的字段布局和 A 股**不一样**：可转债根本没有市值字段（全是 0），
-    // 港股的市值也不在同一位置。整批取不到市值时面积退回用**成交额** ——
-    // 对这两类本来成交额也是更常用的口径。
-    var useField = field;
-    var anyCap = false;
-    for (var z0 = 0; z0 < _marketCache.quotes.length; z0++) {
-      if (_marketCache.quotes[z0][field] > 0) { anyCap = true; break; }
-    }
-    if (!anyCap) useField = "amount";
-    field = useField;
     var map = _cache.map;
 
     var l2ByL1 = [];
@@ -642,6 +632,9 @@
   function fetchMarket(kind, base, onProgress) {
     return loadUniverse(base).then(function (u) {
       var list = u[kind] || [];
+      // 可转债的正股行业是构建时算好的（scripts/build_bond_groups.py），
+      // 这里把它带到行情行上，分组时直接用。
+      var gmap = {};
       // 可转债清单要按类型标记筛：代码段里混着公司债 / ABS（如 20云享A 121505），
       // 它们成交额和市值都是 0，不筛掉会把整棵树都滤空。
       if (kind === "bond") {
@@ -655,8 +648,12 @@
         var pure = String(list[i].c).split(".")[0];
         var mc = kind === "hk" ? "hk" + pure : toMarketCode(pure);
         if (mc) codes.push(mc);
+        if (list[i].g) gmap[pure] = list[i].g;
       }
       return fetchQuotes(codes, onProgress).then(function (rows) {
+        for (var k = 0; k < rows.length; k++) {
+          if (gmap[rows[k].code]) rows[k].group = gmap[rows[k].code];
+        }
         _marketCache = { kind: kind, quotes: rows };
         return _marketCache;
       });
@@ -668,11 +665,22 @@
     if (!_marketCache) throw new Error("请先调用 fetchMarket()");
     var m = METRIC_FIELD[metric] ? metric : "total_mcap";
     var field = METRIC_FIELD[m];
+    // 可转债**没有市值字段**（[44]/[45] 是空的），港股虽然在但口径不同。
+    // 整批取不到市值时，面积退回用**成交额** —— 对这两类本来成交额也更常用。
+    var useField = field;
+    var anyCap = false;
+    for (var z0 = 0; z0 < _marketCache.quotes.length; z0++) {
+      if (_marketCache.quotes[z0][field] > 0) { anyCap = true; break; }
+    }
+    if (!anyCap) useField = "amount";
+    field = useField;
     var byCat = {}, order = [];
     for (var i = 0; i < _marketCache.quotes.length; i++) {
       var it = _marketCache.quotes[i];
       if (!(it[field] > 0)) continue;
       var cat = classify(kind, it.name);
+      // 可转债优先用正股行业；没匹配上的才退回名称关键词，最后落「未匹配」。
+      var cat = it.group || classify(kind, it.name);
       if (!byCat[cat]) { byCat[cat] = {}; order.push(cat); }
       var ex = EX_NAME[it.exchange] || it.exchange;
       (byCat[cat][ex] = byCat[cat][ex] || []).push(it);
