@@ -52,6 +52,31 @@
 
 * { box-sizing: border-box; }
 
+/* ---------- 筛选标签栏（指数 / 自选 / 最近刷新）---------- */
+.tabbar {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  padding: 7px 12px; border-bottom: 1px solid var(--border);
+  background: var(--panel); flex: 0 0 auto;
+}
+.tabbar button {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 11px; font-size: 12px; font-family: inherit;
+  cursor: pointer; white-space: nowrap; line-height: 1.6;
+}
+.tabbar button:hover { color: var(--text); border-color: var(--text-faint); }
+.tabbar button.active {
+  background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+}
+.tabbar button:disabled { opacity: .4; cursor: not-allowed; }
+/* 触摸端放大点击区 */
+@media (pointer: coarse) { .tabbar button { min-height: 34px; padding: 0 14px; } }
+
+.detail-star {
+  background: transparent; border: 0; color: var(--text-faint); font-size: 16px;
+  cursor: pointer; line-height: 1; padding: 0 4px; font-family: inherit;
+}
+.detail-star.on { color: #f5a623; }
+
 html, body {
   margin: 0;
   height: 100%;

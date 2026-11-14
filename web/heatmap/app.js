@@ -1042,6 +1042,7 @@ function tileMarketCode(t) {
 
 /** 用代码打开个股行情页。抽出来是因为方块和面板列表都要用。 */
 function openQuoteByCode(code) {
+  pushRecent(code);   // 点开过就进「最近刷新」
   const url = QUOTE_URL_TEMPLATE.replace("{code}", String(code).split(".")[0]);
   const a = document.createElement("a");
   a.href = url;
@@ -1175,6 +1176,7 @@ function showDetail(t) {
   if (!detailEl) return;
   _detailCode = t.code;
   detailEl.hidden = false;
+  syncStar();
   document.getElementById("detailName").textContent = t.name;
   document.getElementById("detailPath").textContent =
     String(t.code).split(".")[0] + " · " + t.boardName + " › " + t.subBoardName;
@@ -1506,19 +1508,22 @@ const loadingText = document.getElementById('loadingText');
 
 /** 把一份云图数据应用到界面。后端与浏览器直连两条路共用。 */
 function applyTree(tree, ms) {
-  state.tree = tree;
-  state.layout = buildLayout(tree, state.canvasSize.w, state.canvasSize.h);
+  state.rawTree = tree;   // 未筛的原始树；切筛选时从它重算，不用重新取数
+  state.lastMs = ms;
+  const shown = filterTree(tree, state.filter || 'all');
+  state.tree = shown;
+  state.layout = buildLayout(shown, state.canvasSize.w, state.canvasSize.h);
 
-  renderSummary(tree.summary);
-  renderBoardList(tree);
+  renderSummary(shown.summary);
+  renderBoardList(shown);
 
-  document.getElementById('refreshTime').textContent = fmtTime(tree.updatedAt);
+  document.getElementById('refreshTime').textContent = fmtTime(shown.updatedAt);
   document.getElementById('latencyText').textContent = `${Math.round(ms)} ms`;
   document.getElementById('universeText').textContent =
-    `${tree.stockCount.toLocaleString()} 只 / ${tree.boardCount} 板块`;
+    `${shown.stockCount.toLocaleString()} 只 / ${shown.boardCount} 板块`;
   document.getElementById('statusText').textContent = state.clientMode ? '静态模式' : '正常';
   document.getElementById('legendNote').textContent =
-    `颜色 = 涨跌幅（红涨绿跌）· 面积 = ${tree.metricLabel || ''}`;
+    `颜色 = 涨跌幅（红涨绿跌）· 面积 = ${shown.metricLabel || ''}`;
 
   connDot.className = 'dot ok';
   loadingEl.classList.add('hidden');
@@ -1530,6 +1535,184 @@ function applyTree(tree, ms) {
     scheduleRefresh();
   }
 }
+
+/* ============================ 指数筛选 / 自选 ============================
+ * 纯前端做：**不重新取数**，只把已经拿到的树筛一遍。
+ * 这样本地（Python 后端）和 GitHub Pages（浏览器直连）两条路都能用同一套筛选，
+ * 不用在 Python 那边再实现一遍。代价是聚合值要在前端按同样的加权口径重算。
+ *
+ * 口径与 treemap.py 的 _weighted_change 一致：按当前面积指标加权平均。
+ * ==================================================================== */
+
+const INDEX_TABS = [
+  { id: 'all',    name: 'A股全图' },
+  { id: 'sha',    name: '上证A股' },
+  { id: 'sza',    name: '深证A股' },
+  { id: 'hs300',  name: '沪深300' },
+  { id: 'a500',   name: '中证A500' },
+  { id: 'cyb',    name: '创业板' },
+  { id: 'kcb',    name: '科创板' },
+  { id: 'bj',     name: '北交所' },
+  { id: 'watch',  name: '自选' },
+  { id: 'recent', name: '最近刷新' },
+];
+const LS_WATCH = 'dapanyuntu-watch';
+const LS_RECENT = 'dapanyuntu-recent';
+let _idxMembers = null;
+
+function lsGet(key) {
+  try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; }
+  catch (e) { return []; }
+}
+function lsSet(key, arr) {
+  try { localStorage.setItem(key, JSON.stringify(arr.slice(0, 300))); } catch (e) { /* 隐私模式忽略 */ }
+}
+
+/** '601138.SH' → 'sh601138'（腾讯与导出文件用的形式） */
+function mcOf(code) {
+  const p = String(code).split('.');
+  return p[1] ? p[1].toLowerCase() + p[0] : String(code);
+}
+function pureOf(code) { return String(code).split('.')[0]; }
+
+function loadIndexMembers() {
+  if (_idxMembers) return Promise.resolve(_idxMembers);
+  return fetch('../data/index-members.json')
+    .then((r) => r.json())
+    .then((d) => { _idxMembers = d || {}; return _idxMembers; })
+    .catch(() => { _idxMembers = _idxMembers || {}; return _idxMembers; });
+}
+
+function inMembers(list, code) { return !!(list && list.indexOf(mcOf(code)) >= 0); }
+
+function matchIndex(code, id) {
+  const pure = pureOf(code);
+  const ex = (String(code).split('.')[1] || '').toUpperCase();
+  switch (id) {
+    case 'sha':    return ex === 'SH' && /^60/.test(pure);
+    case 'sza':    return ex === 'SZ' && /^00/.test(pure);
+    case 'cyb':    return ex === 'SZ' && /^30/.test(pure);
+    case 'kcb':    return ex === 'SH' && /^68/.test(pure);
+    case 'bj':     return ex === 'BJ';
+    case 'hs300':  return inMembers(_idxMembers && _idxMembers.hs300, code);
+    case 'a500':   return inMembers(_idxMembers && _idxMembers.a500, code);
+    case 'watch':  return lsGet(LS_WATCH).indexOf(pure) >= 0;
+    case 'recent': return lsGet(LS_RECENT).indexOf(pure) >= 0;
+    default: return true;
+  }
+}
+
+/** 按当前面积指标加权平均 —— 与 treemap.py 的 _weighted_change 同口径 */
+function wavg(rows) {
+  let w = 0, s = 0;
+  for (const k of rows) {
+    const v = state.metric === 'amount' ? k.turnoverAmount
+            : state.metric === 'float_mcap' ? k.floatMarketCap : k.totalMarketCap;
+    if (!(v > 0)) continue;
+    w += v;
+    s += v * k.changePct;
+  }
+  return w > 0 ? Math.round((s / w) * 100) / 100 : 0;
+}
+
+function limitOf(code) {
+  const pure = pureOf(code);
+  return /^(30|68)/.test(pure) ? 19.5 : 9.8;   // 创业板 / 科创板 20cm
+}
+
+/** 把已拿到的树筛成只看某指数（或自选）的子集，并重算全部聚合值。 */
+function filterTree(tree, id) {
+  if (!tree || id === 'all') return tree;
+
+  const nodes = [];
+  const all = [];
+  for (const l1 of tree.nodes) {
+    const kids1 = [];
+    for (const l2 of l1.children) {
+      const kids = (l2.children || []).filter((s) => matchIndex(s.code, id));
+      if (!kids.length) continue;
+      kids1.push(Object.assign({}, l2, {
+        children: kids, stockCount: kids.length, changePct: wavg(kids),
+      }));
+      for (const k of kids) all.push(k);
+    }
+    if (!kids1.length) continue;
+    const flat = kids1.reduce((a, c) => a.concat(c.children), []);
+    nodes.push(Object.assign({}, l1, {
+      children: kids1, stockCount: flat.length, changePct: wavg(flat),
+    }));
+  }
+
+  let up = 0, flatN = 0, dn = 0, lu = 0, ld = 0, turnover = 0;
+  for (const s of all) {
+    if (s.changePct > 0) up++; else if (s.changePct < 0) dn++; else flatN++;
+    const lim = limitOf(s.code);
+    if (s.changePct >= lim) lu++;
+    if (s.changePct <= -lim) ld++;
+    turnover += s.turnoverAmount || 0;
+  }
+
+  return Object.assign({}, tree, {
+    nodes,
+    boardCount: nodes.length,
+    stockCount: all.length,
+    summary: Object.assign({}, tree.summary, {
+      stockCount: all.length, boardCount: nodes.length,
+      advanceCount: up, flatCount: flatN, declineCount: dn,
+      limitUpCount: lu, limitDownCount: ld,
+      turnoverAmount: turnover,
+    }),
+  });
+}
+
+function renderIndexTabs() {
+  const box = document.getElementById('indexTabs');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const t of INDEX_TABS) {
+    const b = document.createElement('button');
+    b.textContent = t.name;
+    b.dataset.id = t.id;
+    if (t.id === state.filter) b.className = 'active';
+    b.addEventListener('click', () => setFilter(t.id));
+    box.appendChild(b);
+  }
+}
+
+function setFilter(id) {
+  state.filter = id;
+  renderIndexTabs();
+  if (state.rawTree) applyTree(state.rawTree, state.lastMs || 0);
+}
+
+function inWatch(code) { return lsGet(LS_WATCH).indexOf(pureOf(code)) >= 0; }
+
+function syncStar() {
+  const b = document.getElementById('detailStar');
+  if (!b) return;
+  const on = _detailCode ? inWatch(_detailCode) : false;
+  b.className = on ? 'detail-star on' : 'detail-star';
+  b.textContent = on ? '★' : '☆';
+}
+
+function toggleWatch(code) {
+  const pure = pureOf(code);
+  const list = lsGet(LS_WATCH);
+  const i = list.indexOf(pure);
+  if (i >= 0) list.splice(i, 1); else list.unshift(pure);
+  lsSet(LS_WATCH, list);
+  syncStar();
+  if (state.filter === 'watch') setFilter('watch');
+}
+
+function pushRecent(code) {
+  const pure = pureOf(code);
+  lsSet(LS_RECENT, [pure].concat(lsGet(LS_RECENT).filter((x) => x !== pure)));
+}
+
+document.getElementById('detailStar').addEventListener('click', () => {
+  if (_detailCode) toggleWatch(_detailCode);
+});
 
 /**
  * 静态部署（GitHub Pages 等没有 Python 后端）时，由浏览器直连腾讯自行组装。
@@ -1655,5 +1838,10 @@ window.addEventListener('keydown', (e) => {
 })();
 
 resizeCanvas();
+// 指数筛选的启动放在这里：INDEX_TABS / _idxMembers 是 const/let，
+// 在文件靠后的位置才初始化，放前面会踩 TDZ。
+state.filter = 'all';
+renderIndexTabs();
+loadIndexMembers().then(() => { if (state.rawTree) setFilter(state.filter); });
 scheduleRefresh();
 fetchTreemap();
