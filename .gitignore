@@ -24,3 +24,9 @@ logs/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# ---- 根目录不放调试输出 ----
+# 用 curl -o / node 直接写根目录存过 rb.txt / rh.txt / rt.txt，
+# 被提交进仓库了。调试产物一律写 runtime/（上面已忽略）。
+/*.txt
+!/requirements.txt
