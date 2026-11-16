@@ -329,7 +329,9 @@ function buildLayout(tree, W, H) {
       w: b.w,
       h: b.h - head1.h,
     };
-    boards.push({ ...node, ...b, head: head1, body: body1 });
+    // 显式打标：判定「这是板块不是个股」不能看 code——
+    // 服务端建的树里一级节点带的是申万指数代码（801780），是真值。
+    boards.push({ ...node, ...b, isBoard: true, head: head1, body: body1 });
 
     if (body1.w <= 1 || body1.h <= 1) continue;
 
@@ -1025,7 +1027,7 @@ canvas.addEventListener('mousemove', (e) => {
   // 行业视图下 hitTest 会返回**板块矩形**。板块不是个股——没有 code/price，
   // 直接喂给详情面板会渲染出「银行 801780 · undefined · undefined」。
   // 所以：悬停高亮用 hit（板块也该有高亮），详情和提示只用真正的个股 t。
-  const t = (hit && hit.code) ? hit : null;
+  const t = (hit && !hit.isBoard) ? hit : null;
   if (hit !== state.hovered) {
     _lastMouse = { x: e.clientX, y: e.clientY };
     state.hovered = hit;
@@ -1464,7 +1466,7 @@ canvas.addEventListener('click', (e) => {
   const t = hitTest(e.clientX - rect.left, e.clientY - rect.top);
   if (!t) return;
   // 行业视图下点板块 = 下钻进这个行业的个股
-  if (state.level === 'industry' && t.body) { drillInto(t.name); return; }
+  if (t.isBoard) { if (state.level === 'industry') drillInto(t.name); return; }
   openQuote(t);
 });
 
