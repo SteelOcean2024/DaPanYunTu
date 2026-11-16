@@ -83,6 +83,9 @@ const MAX_SCALE = 80;
 const state = {
   tree: null,            // 当前云图数据
   metric: 'total_mcap',
+  // 'stock' = 展开到个股；'industry' = 只画 32 个一级行业块。
+  // 全市场 5580 只平均只有 11px 见方，行业视图是「看得清」和「看得全」之间的一档。
+  level: 'stock',
   view: { scale: 1, tx: 0, ty: 0 },
   layout: null,          // { tiles: [...], boards: [...], subBoards: [...] }
   hovered: null,
@@ -557,6 +560,17 @@ function draw() {
   ctx.save();
   ctx.translate(tx, ty);
   ctx.scale(scale, scale);
+
+  // ---------- 一级行业底盘 ----------
+  // 行业视图下没有个股方块来上色，不铺这一层的话 32 个行业块全是白的。
+  // 个股视图下这层会被上面的方块完全盖住，等于白铺——所以放在个股之前安全。
+  if (state.level === 'industry') {
+    for (const b of layout.boards) {
+      if (b.body.w <= 0 || b.body.h <= 0) continue;
+      ctx.fillStyle = colorFor(b.changePct);
+      ctx.fillRect(b.body.x, b.body.y, b.body.w, b.body.h);
+    }
+  }
 
   // ---------- 个股方块 ----------
   for (const t of layout.tiles) {
@@ -1567,12 +1581,22 @@ const loadingText = document.getElementById('loadingText');
 
 
 /** 把一份云图数据应用到界面。后端与浏览器直连两条路共用。 */
+/** 把树砍到只剩一级行业：children 清空，buildLayout 就只会画行业块。 */
+function aggregateToBoards(tree) {
+  if (!tree || !tree.nodes) return tree;
+  return Object.assign({}, tree, {
+    nodes: tree.nodes.map((n) => Object.assign({}, n, { children: [] })),
+  });
+}
+
 function applyTree(tree, ms) {
   state.rawTree = tree;   // 未筛的原始树；切筛选时从它重算，不用重新取数
   state.lastMs = ms;
   const shown = filterTree(tree, state.filter || 'all');
   state.tree = shown;
-  state.layout = buildLayout(shown, state.canvasSize.w, state.canvasSize.h);
+  // 行业视图不展开到个股：把 children 剥掉再布局。
+  const forLayout = state.level === 'industry' ? aggregateToBoards(shown) : shown;
+  state.layout = buildLayout(forLayout, state.canvasSize.w, state.canvasSize.h);
 
   renderSummary(shown.summary);
   renderBoardList(shown);
@@ -1893,6 +1917,16 @@ function scheduleRefresh() {
 }
 
 /* ============================ 事件绑定 ============================ */
+
+document.getElementById('levelSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-level]');
+  if (!btn || btn.dataset.level === state.level) return;
+  state.level = btn.dataset.level;
+  document.querySelectorAll('#levelSeg .seg-btn').forEach((b) =>
+    b.classList.toggle('active', b === btn));
+  if (state.rawTree) applyTree(state.rawTree, state.lastMs || 0);
+  draw();
+});
 
 document.getElementById('metricSeg').addEventListener('click', (e) => {
   const btn = e.target.closest('.seg-btn');

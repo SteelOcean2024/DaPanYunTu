@@ -38,6 +38,12 @@
       <button class="seg-btn" data-metric="amount" title="面积 = 当日成交额。回答「钱堆在哪里」——切成它，高换手票会变大，银行会缩小">成交额</button>
     </div>
     <div class="panel-hint">面积代表规模；颜色 = 涨跌幅，按面积加权</div>
+
+    <div class="panel-title" style="margin-top:10px">显示层级</div>
+    <div class="seg" id="levelSeg">
+      <button class="seg-btn" data-level="industry" title="只显示 32 个申万一级行业。看大局用——每块都够大，不会被 5500 只碎点糊成马赛克">行业</button>
+      <button class="seg-btn active" data-level="stock" title="展开到每一只个股。看细节用，但方块会很小">个股</button>
+    </div>
   </section>
 
   <section class="panel">
@@ -211,6 +217,6 @@
 <div class="backdrop" id="backdrop"></div>
 
 <script src="../shared/market.js"></script>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
