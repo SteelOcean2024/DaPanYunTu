@@ -27,9 +27,12 @@
 /* ============================ 常量与状态 ============================ */
 
 const API = {
-  treemap: 'api/heatmap/treemap',
-  summary: 'api/heatmap/summary',
-  status:  'api/heatmap/status',
+  // 根路径，不是相对路径。页面在 /heatmap/ 下，相对写会拼成
+  // /heatmap/api/heatmap/treemap —— 404，每次 5 秒刷新都白撞一次。
+  // 线上 Pages 没有该接口，照样 404 回退到浏览器直连，两边都不亏。
+  treemap: '/api/heatmap/treemap',
+  summary: '/api/heatmap/summary',
+  status:  '/api/heatmap/status',
 };
 
 /** 颜色映射的量程（%）。超出部分按端点色处理。 */
@@ -299,6 +302,9 @@ function squarify(children, rect) {
  * 剩下的区域再分给下一层。标题带高度按矩形高度的比例取，
  * 并做上下限截断——太小看不清，太大又挤占内容。
  */
+/** 方块小于这个面积就并进「其他」：约 6.8px 见方，再小就点不中也看不清。 */
+const MIN_TILE_AREA = 46;
+
 function buildLayout(tree, W, H) {
   if (!tree || !tree.nodes || !tree.nodes.length || W <= 0 || H <= 0) return null;
 
@@ -338,7 +344,43 @@ function buildLayout(tree, W, H) {
 
       if (body2.w <= 1 || body2.h <= 1) continue;
 
-      const stockRects = squarify(s.children || [], body2);
+      // ---------- 合并过小的方块 ----------
+      // 为什么需要：全市场 5580 只塞进一张图，平均每只只有 11px 见方，
+      // 而且分布极不均——工行那种占几百像素，剩下几千只只有 1~4px。
+      // 那些 1~4px 的块既看不清也点不中，整张图看上去就是一片马赛克。
+      // 做法：预测每只按其市值能分到多少面积，低于阈值的**合并成一个「其他」节点
+      // 再重新布局**——而不是事后往上盖一块，那样会和已有方块重叠。
+      let kids = s.children || [];
+      if (kids.length > 1) {
+        const totalV = kids.reduce((a, c) => a + (c.value || 0), 0);
+        const area = body2.w * body2.h;
+        if (totalV > 0 && area > 0) {
+          const big = [], small = [];
+          for (const c of kids) {
+            ((c.value || 0) / totalV) * area >= MIN_TILE_AREA ? big.push(c) : small.push(c);
+          }
+          // 只剩一只就别合并了——「其他 1 只」比直接画出来更难看
+          if (small.length > 1) {
+            let sv = 0, sw = 0;
+            for (const c of small) {
+              sv += c.value || 0;
+              sw += (c.value || 0) * (c.changePct || 0);
+            }
+            kids = big.concat([{
+              code: "",
+              price: null,
+              name: "其他 " + small.length + " 只",
+              value: sv,
+              changePct: sv > 0 ? +(sw / sv).toFixed(2) : 0,
+              stockCount: small.length,
+              isOther: true,
+              children: [],
+            }]);
+          }
+        }
+      }
+
+      const stockRects = squarify(kids, body2);
       for (const t of stockRects) {
         tiles.push({
           ...t,
@@ -800,7 +842,7 @@ function computeLabelPlan(t, scale) {
   // ---------- 一级：三行（名称 / 涨跌幅 / 价格）----------
   if (sw >= 54 && sh >= 44) {
     const f = fitFontSize(name, availW, sh * 0.24, 8, '600', scale);
-    if (f > 0) return { mode: 'big', f, name, pctText, price: t.price.toFixed(2), showPrice: sh >= 72 };
+    if (f > 0) return { mode: 'big', f, name, pctText, price: fmtPrice(t.price), showPrice: fmtPrice(t.price) !== "" && sh >= 72 };
   }
 
   // ---------- 二级：两行（名称 / 涨跌幅）----------
@@ -826,6 +868,10 @@ function computeLabelPlan(t, scale) {
   }
   return null;
 }
+
+/** 合并出来的「其他」块没有 price。这些地方必须判空，
+ *  否则 undefined.toFixed 会抛错，被页面 catch-all 报成「获取失败」。 */
+function fmtPrice(v) { return (typeof v === "number" && isFinite(v)) ? v.toFixed(2) : ""; }
 
 function drawTileLabel(t) {
   const { scale } = state.view;
@@ -894,7 +940,7 @@ function showTooltip(t, sx, sy) {
   // 详情面板开着的时候不再出 tooltip——两个浮窗会叠在一起（这个 bug 是我加面板时引入的）
   if (detailEnabled()) { hideTooltip(); return; }
   const rows = [
-    ['现价', t.price.toFixed(2)],
+    ['现价', fmtPrice(t.price)],
     ['涨跌幅', fmtPct(t.changePct)],
     ['成交额', fmtMoney(t.turnoverAmount)],
     ['总市值', fmtMoney(t.totalMarketCap)],
@@ -1180,7 +1226,7 @@ function showDetail(t) {
   document.getElementById("detailName").textContent = t.name;
   document.getElementById("detailPath").textContent =
     String(t.code).split(".")[0] + " · " + t.boardName + " › " + t.subBoardName;
-  document.getElementById("detailPrice").textContent = t.price.toFixed(2);
+  document.getElementById("detailPrice").textContent = fmtPrice(t.price);
   const pcEl = document.getElementById("detailPct");
   pcEl.textContent = fmtPct(t.changePct);
   pcEl.className = "detail-pct " + pctClass(t.changePct);
