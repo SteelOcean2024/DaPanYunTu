@@ -1941,8 +1941,11 @@ fetchTreemap();
 
   var saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) {}
-  // 默认展开：第一次来的人最需要它
-  apply(saved === null ? true : saved === '1');
+  // 默认值看屏宽：宽屏展开（第一次来的人最需要它）；
+  // 窄屏默认收起——320px 的面板在手机上会把画布挤到只剩 70px，没法看。
+  // 用户手动开过一次之后就按他自己的选择来。
+  var wide = window.innerWidth >= 1100;
+  apply(saved === null ? wide : saved === '1');
 
   if (tab) tab.addEventListener('click', function () { apply(true); });
   if (x) x.addEventListener('click', function () { apply(false); });

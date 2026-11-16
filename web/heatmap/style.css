@@ -671,7 +671,7 @@ html[data-theme="blue"] {
    天然不可能重叠。窄屏才降级成抽屉浮层。
    ========================================================================= */
 .guide {
-  flex: 0 0 272px;
+  flex: 0 0 320px;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -752,7 +752,8 @@ html[data-theme="blue"] {
    收起 34px 窄条 / 展开 272px。手机上展开会挤压画布，但行为**可预测且正确**，
    且收起状态会记住，用户自己把它收掉即可。 */
 @media (max-width: 520px) {
-  .guide { flex-basis: 220px; }
+  /* 窄屏给 260px：再宽画布就只剩一条缝了。默认还是收起的（见 app.js）。 */
+  .guide { flex-basis: 260px; }
   .guide-list dd { font-size: 12.5px; }
 }
 
