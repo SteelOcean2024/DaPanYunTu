@@ -379,6 +379,9 @@ function buildLayout(tree, W, H) {
               changePct: sv > 0 ? +(sw / sv).toFixed(2) : 0,
               stockCount: small.length,
               isOther: true,
+              // 成员股留着：合成块本身没法点开看个股，但有了这个列表
+              // 以后要做「展开其他块」就不用回到这里重算。
+              members: small,
               children: [],
             }]);
           }
@@ -1077,6 +1080,8 @@ window.addEventListener('mouseup', () => {
  * 不用 ``location.href``：云图是常驻盯盘页，跳走会丢掉缩放位置和当前视图。
  */
 function openQuote(t) {
+  // 合并出来的「其他 N 只」块 code 是空串，放行会开出一个坏链接。
+  if (!t || !t.code) return;
   const code = String(t.code).split('.')[0];
   const url = QUOTE_URL_TEMPLATE.replace('{code}', code);
 
@@ -1247,6 +1252,8 @@ function drawKline(rows, note) {
 
 function showDetail(t) {
   if (!detailEl) return;
+  // 板块和合并块不是个股，没有 code，进来只会渲染出一堆 undefined
+  if (!t || t.isBoard || !t.code) return;
   _detailCode = t.code;
   detailEl.hidden = false;
   syncStar();
