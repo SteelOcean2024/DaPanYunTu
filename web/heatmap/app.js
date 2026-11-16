@@ -945,6 +945,13 @@ function hitTest(sx, sy) {
     const t = layout.tiles[i];
     if (p.x >= t.x && p.x <= t.x + t.w && p.y >= t.y && p.y <= t.y + t.h) return t;
   }
+  // 行业视图没有个股方块，退到板块矩形——否则整张图点哪儿都没反应。
+  if (state.level === 'industry') {
+    for (const b of layout.boards) {
+      if (p.x >= b.body.x && p.x <= b.body.x + b.body.w &&
+          p.y >= b.body.y && p.y <= b.body.y + b.body.h) return b;
+    }
+  }
   return null;
 }
 
@@ -1014,12 +1021,16 @@ canvas.addEventListener('mousemove', (e) => {
     return;
   }
 
-  const t = hitTest(sx, sy);
-  if (t !== state.hovered) {
+  const hit = hitTest(sx, sy);
+  // 行业视图下 hitTest 会返回**板块矩形**。板块不是个股——没有 code/price，
+  // 直接喂给详情面板会渲染出「银行 801780 · undefined · undefined」。
+  // 所以：悬停高亮用 hit（板块也该有高亮），详情和提示只用真正的个股 t。
+  const t = (hit && hit.code) ? hit : null;
+  if (hit !== state.hovered) {
     _lastMouse = { x: e.clientX, y: e.clientY };
-    state.hovered = t;
+    state.hovered = hit;
     // 悬停在个股上时给「可点」的手型，否则是可拖拽的手型
-    canvas.style.cursor = t ? 'pointer' : '';
+    canvas.style.cursor = hit ? 'pointer' : '';
     draw();
   }
   scheduleDetail(t);
@@ -1451,7 +1462,10 @@ canvas.addEventListener('click', (e) => {
   }
   const rect = canvas.getBoundingClientRect();
   const t = hitTest(e.clientX - rect.left, e.clientY - rect.top);
-  if (t) openQuote(t);
+  if (!t) return;
+  // 行业视图下点板块 = 下钻进这个行业的个股
+  if (state.level === 'industry' && t.body) { drillInto(t.name); return; }
+  openQuote(t);
 });
 
 /** 滚轮缩放：以光标位置为锚点，保证光标下的内容不动 */
@@ -1482,6 +1496,19 @@ canvas.addEventListener(
 );
 
 /** 平滑地把某个矩形放大到充满视口 */
+/** 从行业视图点进某个行业：切到个股层，并把视口聚到该行业。 */
+function drillInto(boardName) {
+  state.level = 'stock';
+  document.querySelectorAll('#levelSeg .seg-btn').forEach((b) =>
+    b.classList.toggle('active', b.dataset.level === 'stock'));
+  if (state.rawTree) applyTree(state.rawTree, state.lastMs || 0);
+  const lt = state.layout;
+  const b = lt && lt.boards.find((x) => x.name === boardName);
+  if (b) focusRect({ x: b.x, y: b.y, w: b.w, h: b.h });
+  document.getElementById('stageTitle').textContent = boardName + ' · 个股';
+  draw();
+}
+
 function focusRect(r, padding = 6) {
   const { w: W, h: H } = state.canvasSize;
   if (!r || r.w <= 0 || r.h <= 0) return;
@@ -1947,7 +1974,17 @@ document.getElementById('intervalSelect').addEventListener('change', (e) => {
   scheduleRefresh();
 });
 
-document.getElementById('manualRefresh').addEventListener('click', fetchTreemap);
+// 加反馈：客户端直连要重新拉 5580 只报价，5~15 秒。
+// 以前点下去界面上毫无变化，看起来就是「按钮坏了」。
+document.getElementById('manualRefresh').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  if (state.fetching) return;
+  const old = btn.textContent;
+  btn.textContent = '刷新中…';
+  btn.disabled = true;
+  try { await fetchTreemap(); }
+  finally { btn.textContent = old; btn.disabled = false; }
+});
 document.getElementById('resetView').addEventListener('click', resetView);
 
 /* ---------- 窄屏侧栏抽屉 ----------
