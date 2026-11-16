@@ -1220,12 +1220,26 @@ function showDetail(t) {
 }
 
 /** 悬停有 110ms 防抖：鼠标划过时不要一路触发请求。 */
+/** 预取防抖计时器：只有指针停在方块上才发 K 线请求。 */
+let _prefetchTimer = null;
+
 function scheduleDetail(t) {
-  // 一换目标就**立刻**预取 K 线，不等 110ms 防抖——和防抖并行，体感快一半
   if (_detailTimer) clearTimeout(_detailTimer);
+  if (!t && _prefetchTimer) { clearTimeout(_prefetchTimer); _prefetchTimer = null; }
+  // 预取**必须防抖**。原来这里是无条件立即发请求（理由是「体感快一半」），
+  // 但全市场有 5580 个方块，鼠标扫一遍就是几百上千个 K 线请求：
+  // 既被腾讯限流（页面卡在「正在获取全市场行情」），又白烧流量。
+  // 现在只在指针**停在**同一个方块上 160ms 才发。
   if (t && MarketData && MarketData.fetchKline) {
     const mc0 = tileMarketCode(t);
-    if (mc0) MarketData.fetchKline(mc0, 120).catch(() => {});
+    if (mc0) {
+      if (_prefetchTimer) clearTimeout(_prefetchTimer);
+      _prefetchTimer = setTimeout(() => {
+        _prefetchTimer = null;
+        if (!state.hovered || state.hovered.code !== t.code) return;
+        MarketData.fetchKline(mc0, 120).catch(() => {});
+      }, 160);
+    }
   }
   if (!t) {
     _detailTimer = setTimeout(() => { detailEl.hidden = true; _detailCode = null; }, 320);
