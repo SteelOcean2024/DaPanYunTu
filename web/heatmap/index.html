@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>大盘云图 · A股市场热力图</title>
-<link rel="stylesheet" href="style.css?v=7">
+<link rel="stylesheet" href="style.css?v=8">
 <!-- 提前和行情域名建好连接：首次悬停取 K 线时省掉 DNS + TLS 握手 -->
 <link rel="preconnect" href="https://web.ifzq.gtimg.cn">
 <link rel="preconnect" href="https://qt.gtimg.cn">
@@ -26,6 +26,10 @@
     <span class="refresh-time" id="refreshTime">--:--:--</span>
   </div>
 
+  <!-- 中间这段可滚动：侧栏装不下所有面板，不给滚动容器的话
+       溢出会被 .sidebar 的 overflow:hidden 永久裁掉，「一级行业」就够不着了。 -->
+  <div class="sidebar-scroll">
+
   <section class="panel">
     <div class="panel-title">面积指标</div>
     <div class="seg" id="metricSeg">
@@ -34,7 +38,6 @@
       <button class="seg-btn" data-metric="amount" title="面积 = 当日成交额。回答「钱堆在哪里」——切成它，高换手票会变大，银行会缩小">成交额</button>
     </div>
     <div class="panel-hint">面积代表规模；颜色 = 涨跌幅，按面积加权</div>
-    </div>
   </section>
 
   <section class="panel">
@@ -75,6 +78,8 @@
     <div class="panel-title">一级行业 <span class="hint">点击聚焦</span></div>
     <ul class="board-list" id="boardList"></ul>
   </section>
+
+  </div><!-- /.sidebar-scroll -->
 
   <footer class="sidebar-foot">
     <button class="ghost-btn" id="resetView">重置视图</button>
@@ -179,7 +184,7 @@
     <dl class="guide-list">
       <dt>方格大小 = 市值</dt>
       <dd>跟涨跌<strong>无关</strong>。大块 = 大公司（茅台、工行这种）。
-          可用上方「面积」切换成总市值 / 流通市值 / 成交额。</dd>
+          可用上方「面积」切换成总市值 / 流通市值 / 成交额。过小的方块会并成「其他 N 只」——不然 5500 只挤在一起全是碎点，看不清也点不中。</dd>
 
       <dt>颜色 = 当日涨跌幅</dt>
       <dd>红色上涨、绿色下跌，比的是<strong>昨天收盘价</strong>，不是你的买入价。

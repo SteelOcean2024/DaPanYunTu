@@ -276,7 +276,16 @@ body { display: flex; }
   flex: 0 0 auto;
 }
 
+/* 中间可滚动、底部固定。.sidebar 是 overflow:hidden 的 flex 列，
+   没有这一层的话，面板一多，最下面的「一级行业」会被直接裁掉且无法滚动到。 */
+.sidebar-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .sidebar-foot {
+  flex: 0 0 auto;
   padding: 10px 16px 12px;
   border-top: 1px solid var(--border);
   display: flex;
