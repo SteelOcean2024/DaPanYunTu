@@ -1909,3 +1909,27 @@ renderIndexTabs();
 loadIndexMembers().then(() => { if (state.rawTree) setFilter(state.filter); });
 scheduleRefresh();
 fetchTreemap();
+
+
+/* ============================ 怎么读面板：展开/收起 ============================ */
+(function () {
+  var el = document.getElementById('guide');
+  var tab = document.getElementById('guideTab');
+  var x = document.getElementById('guideX');
+  if (!el) return;
+
+  var KEY = 'dbyt.guide';
+
+  function apply(open) {
+    el.setAttribute('data-open', open ? '1' : '0');
+    try { localStorage.setItem(KEY, open ? '1' : '0'); } catch (e) {}
+  }
+
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) {}
+  // 默认展开：第一次来的人最需要它
+  apply(saved === null ? true : saved === '1');
+
+  if (tab) tab.addEventListener('click', function () { apply(true); });
+  if (x) x.addEventListener('click', function () { apply(false); });
+})();
