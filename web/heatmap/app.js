@@ -321,7 +321,11 @@ function buildLayout(tree, W, H) {
     const node = b.node || b;
     // 一级标题带。刻意压得比较窄——标题带每高 1 像素，就是从个股方块上抠掉
     // 一整行的面积。全市场 5500 只股票本来就挤，这里必须省。
-    const h1 = clamp(b.h * 0.045, 10, 15);
+    // 个股视图里一级带必须省——每高 1px 都是从个股方块上抠掉的。
+    // 行业视图相反：只有 32 块，带子做高才放得下「涨X 跌Y」，也才看得清。
+    const h1 = state.level === 'industry'
+      ? clamp(b.h * 0.10, 22, 40)
+      : clamp(b.h * 0.045, 10, 15);
     const head1 = { x: b.x, y: b.y, w: b.w, h: Math.min(h1, b.h * 0.4) };
     const body1 = {
       x: b.x,
@@ -570,11 +574,16 @@ function draw() {
   // 行业视图下没有个股方块来上色，不铺这一层的话 32 个行业块全是白的。
   // 个股视图下这层会被上面的方块完全盖住，等于白铺——所以放在个股之前安全。
   if (state.level === 'industry') {
+    // 降饱和：32 个块如果全用满饱和的红绿铺满，整屏就是一面色墙，
+    // 反而看不出哪块强哪块弱。铺半透明让底色透上来，方向仍在但不再刺眼。
+    // （参考实现的做法也是把行业层压暗，只有个股层才用满色。）
+    ctx.globalAlpha = 0.62;
     for (const b of layout.boards) {
       if (b.body.w <= 0 || b.body.h <= 0) continue;
       ctx.fillStyle = colorFor(b.changePct);
       ctx.fillRect(b.body.x, b.body.y, b.body.w, b.body.h);
     }
+    ctx.globalAlpha = 1;
   }
 
   // ---------- 个股方块 ----------
@@ -640,7 +649,9 @@ function draw() {
     ctx.fillStyle = colorFor(b.changePct);
     ctx.fillRect(b.head.x, b.head.y, 3 / scale, b.head.h);
 
-    const fpx = headerFontSize(b.name, b.head, 0.58, 0.50, 10, scale);
+    // 行业视图字号下限抬到 16：带子高了，字太小反而浪费。
+    const fpx = headerFontSize(b.name, b.head, 0.58, 0.50,
+                                state.level === 'industry' ? 16 : 10, scale);
     ctx.font = `600 ${fpx}px -apple-system, "Microsoft YaHei", sans-serif`;
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
@@ -656,7 +667,18 @@ function draw() {
       ctx.fillText(fmtPct(b.changePct), b.head.x + pad + nameW + 8 / scale,
                    b.head.y + b.head.h / 2);
     }
-    if (b.head.w > 210 / scale) {
+    // 行业视图：把「涨X 跌Y」摆到百分比左边，和参考实现一致——
+    // 只给一个百分比，看不出这个行业是普涨还是两极分化。
+    if (state.level === 'industry' && b.upCount != null && b.head.w > 200 / scale) {
+      const pctW = b.head.w > 130 / scale ? ctx.measureText(fmtPct(b.changePct)).width + 18 / scale : 0;
+      ctx.textAlign = 'right';
+      ctx.font = `${fpx * 0.78}px -apple-system, "Microsoft YaHei", sans-serif`;
+      ctx.fillStyle = tokens().bandTextDim;
+      ctx.fillText('涨' + b.upCount + ' 跌' + b.downCount,
+                   b.head.x + b.head.w - pad - pctW, b.head.y + b.head.h / 2);
+      ctx.textAlign = 'left';
+    }
+    if (b.head.w > 210 / scale && state.level !== 'industry') {
       ctx.textAlign = 'right';
       ctx.font = `${fpx * 0.78}px -apple-system, "Microsoft YaHei", sans-serif`;
       ctx.fillStyle = tokens().bandTextDim;
@@ -1620,8 +1642,20 @@ const loadingText = document.getElementById('loadingText');
 /** 把树砍到只剩一级行业：children 清空，buildLayout 就只会画行业块。 */
 function aggregateToBoards(tree) {
   if (!tree || !tree.nodes) return tree;
+  function countUp(n) {
+    if (n.children && n.children.length) {
+      let u = 0, d = 0;
+      for (const c of n.children) { const r = countUp(c); u += r[0]; d += r[1]; }
+      return [u, d];
+    }
+    return n.changePct > 0 ? [1, 0] : (n.changePct < 0 ? [0, 1] : [0, 0]);
+  }
   return Object.assign({}, tree, {
-    nodes: tree.nodes.map((n) => Object.assign({}, n, { children: [] })),
+    nodes: tree.nodes.map((n) => {
+      // children 剥掉后就算不出涨跌家数了，所以先算再剥。
+      const c = countUp(n);
+      return Object.assign({}, n, { children: [], upCount: c[0], downCount: c[1] });
+    }),
   });
 }
 
